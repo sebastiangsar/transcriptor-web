@@ -32,28 +32,28 @@ def buscar_archivo_cookies():
     return None
 
 with st.sidebar:
-    st.header("Configuración")
+    st.header("Configuracion")
     if not GROQ_API_KEY:
         GROQ_API_KEY = st.text_input("Groq API Key:", type="password", placeholder="gsk_...")
     
-    st.subheader("Sesión de Instagram")
-    cookie_subida = st.file_uploader("Sube tu archivo cookies.txt aquí:", type=["txt"])
+    st.subheader("Sesion de Instagram")
+    cookie_subida = st.file_uploader("Sube tu archivo cookies.txt aqui:", type=["txt"])
     if cookie_subida:
         with open("cookies.txt", "wb") as f:
             f.write(cookie_subida.getbuffer())
-        st.success("¡Archivo guardado!")
+        st.success("Archivo guardado!")
         st.rerun()
 
     archivo_cookies_encontrado = buscar_archivo_cookies()
     if archivo_cookies_encontrado:
-        st.success(f"✅ Sesión activa ({archivo_cookies_encontrado})")
+        st.success(f"Sesion activa ({archivo_cookies_encontrado})")
     else:
-        st.warning("⚠️ Sin archivo de cookies.")
+        st.warning("Sin archivo de cookies.")
 
-pestaña1, pestaña2 = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
+pestana1, pestana2 = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
 def boton_copiar(texto, id_btn="copiar"):
-    """Genera un botón de copia rápida al portapapeles"""
+    """Genera un boton de copia rapida al portapapeles"""
     texto_json = json.dumps(texto)
     html_code = f"""
     <button id="{id_btn}" onclick="copiar_{id_btn}()" style="
@@ -162,7 +162,6 @@ def obtener_modelo_texto_activo(client):
     return "llama-3.1-8b-instant"
 
 def formatear_y_traducir(texto, api_key, traducir=True):
-    """Estructura en párrafos y opcionalmente traduce al español latino"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
@@ -211,4 +210,74 @@ def mostrar_resultados(texto_original, quiere_traducir):
     if texto_traducido:
         tab_es, tab_orig = st.tabs(["🇪🇸 Traducción al Español Latino", "🌐 Idioma Original"])
         with tab_es:
-            boton_copiar(text
+            boton_copiar(texto_traducido, id_btn="btn_es")
+            st.text_area("Español Latinoamericano", value=texto_traducido, height=320)
+            st.download_button("📥 Descargar traducción (.txt)", data=texto_traducido, file_name="traduccion_espanol.txt", mime="text/plain")
+        with tab_orig:
+            boton_copiar(texto_orig_formateado, id_btn="btn_orig")
+            st.text_area("Texto Original", value=texto_orig_formateado, height=320)
+            st.download_button("📥 Descargar original (.txt)", data=texto_orig_formateado, file_name="original.txt", mime="text/plain")
+    else:
+        boton_copiar(texto_orig_formateado, id_btn="btn_solo_orig")
+        st.text_area("Transcripción en párrafos", value=texto_orig_formateado, height=320)
+        st.download_button("📥 Descargar (.txt)", data=texto_orig_formateado, file_name="transcripcion.txt", mime="text/plain")
+
+# --- PESTAÑA 1: POR ENLACE ---
+with pestana1:
+    url = st.text_input("Pega el enlace de YouTube, TikTok o Instagram:")
+    traducir_link = st.checkbox("Traducir automáticamente al español de Latinoamérica", value=True, key="chk_link")
+    
+    if st.button("Transcribir y Organizar", type="primary"):
+        if not GROQ_API_KEY.strip():
+            st.error("Por favor ingresa tu Groq API Key en la barra lateral izquierda.")
+        elif not url.strip():
+            st.warning("Ingresa un enlace válido.")
+        else:
+            archivo_temporal = None
+            try:
+                with st.spinner("1/3 Descargando audio por detrás..."):
+                    archivo_temporal = extraer_audio(url.strip())
+
+                with st.spinner("2/3 Transcribiendo con IA (Whisper)..."):
+                    texto = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
+
+                if not texto:
+                    st.warning("No se detectó voz en el video.")
+                else:
+                    mostrar_resultados(texto, traducir_link)
+
+            except Exception as e:
+                st.error(f"Error al procesar el video: {e}")
+            finally:
+                if archivo_temporal and os.path.exists(archivo_temporal):
+                    try:
+                        os.remove(archivo_temporal)
+                    except Exception:
+                        pass
+
+# --- PESTAÑA 2: SUBIR ARCHIVO ---
+with pestana2:
+    archivo_subido = st.file_uploader("Arrastra tu video o audio aquí:", type=["mp3", "mp4", "m4a", "wav"])
+    traducir_file = st.checkbox("Traducir automáticamente al español de Latinoamérica", value=True, key="chk_file")
+    
+    if archivo_subido and st.button("Transcribir y Organizar archivo", type="primary"):
+        if not GROQ_API_KEY.strip():
+            st.error("Por favor ingresa tu Groq API Key en la barra lateral izquierda.")
+        else:
+            nombre_temp = f"temp_subido_{archivo_subido.name}"
+            try:
+                with open(nombre_temp, "wb") as f:
+                    f.write(archivo_subido.getbuffer())
+
+                with st.spinner("Transcribiendo archivo con IA..."):
+                    texto = transcribir_con_groq(nombre_temp, GROQ_API_KEY)
+
+                mostrar_resultados(texto, traducir_file)
+            except Exception as e:
+                st.error(f"Error: {e}")
+            finally:
+                if os.path.exists(nombre_temp):
+                    try:
+                        os.remove(nombre_temp)
+                    except Exception:
+                        pass
