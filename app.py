@@ -7,19 +7,27 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-# Activa FFmpeg: en la nube usa el instalado por packages.txt; en Windows usa static_ffmpeg
+# Activa FFmpeg: en la nube usa el de packages.txt; en local usa static_ffmpeg
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
 except Exception:
     pass
 
-st.set_page_config(page_title="Transcriptor Universal", page_icon="🎙️", layout="centered")
+st.set_page_config(page_title="Transcriptor & Creador de Guiones", page_icon="🎬", layout="centered")
 
-st.title("🎙️ Transcriptor Universal")
-st.caption("YouTube, TikTok e Instagram — Whisper y Llama en Groq")
+st.title("🎬 Transcriptor & Creador de Guiones Virales")
+st.caption("Ingeniería inversa de videos para generar ideas y guiones listos para grabar")
 
-# Manejo seguro de la API Key (Secrets de Streamlit o barra lateral)
+# Memoria de sesión para que no se borre la transcripción al hacer clic en otros botones
+if "texto_original" not in st.session_state:
+    st.session_state.texto_original = None
+if "texto_traducido" not in st.session_state:
+    st.session_state.texto_traducido = None
+if "guiones_generados" not in st.session_state:
+    st.session_state.guiones_generados = None
+
+# Manejo seguro de la API Key
 GROQ_API_KEY = ""
 try:
     if "GROQ_API_KEY" in st.secrets:
@@ -52,8 +60,6 @@ with st.sidebar:
         st.success(f"Sesion activa ({archivo_cookies_encontrado})")
     else:
         st.warning("Sin archivo de cookies.")
-
-pestana1, pestana2 = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
 def boton_copiar(texto, id_btn="copiar"):
     """Genera un boton de copia rapida al portapapeles"""
@@ -191,46 +197,66 @@ def formatear_y_traducir(texto, api_key, traducir=True):
     )
     return res.choices[0].message.content
 
-def mostrar_resultados(texto_original, quiere_traducir):
-    st.success("¡Transcripción procesada con éxito!")
+def generar_ideas_y_guiones(transcripcion, nicho_usuario, api_key):
+    """Hace ingeniería inversa al video y genera 3 ideas con sus guiones adaptados"""
+    client = Groq(api_key=api_key)
+    modelo = obtener_modelo_texto_activo(client)
     
-    texto_orig_formateado = texto_original
-    texto_traducido = None
+    prompt_sistema = (
+        "Eres un estratega de contenido viral y director de guiones experto en videos cortos (Reels, TikTok, Shorts). "
+        "Tu habilidad consiste en desarmar un video viral exitoso, extraer su fórmula psicológica y aplicarla a cualquier nicho.\n\n"
+        "ESTRUCTURA DE RESPUESTA OBLIGATORIA (Usa Markdown claro):\n\n"
+        "### 🧠 1. RADIOGRAFÍA DE LA FÓRMULA VIRAL\n"
+        "- **El Gancho (Hook):** Técnica psicológica que usó (dolor, curiosidad, error común) y por qué detiene el scroll.\n"
+        "- **Estructura de Retención:** Cómo mantuvo la atención a la mitad del video.\n"
+        "- **Remate y CTA:** Estrategia de llamado a la acción.\n\n"
+        "---\n\n"
+        "### 💡 2. BANCO DE 3 IDEAS PARA TU NICHO\n"
+        "- **Idea 1 (Enfoque Error/Dolor):** Concepto concreto.\n"
+        "- **Idea 2 (Enfoque Secreto/Curiosidad):** Concepto concreto.\n"
+        "- **Idea 3 (Enfoque Hack/Acción Rápida):** Concepto concreto.\n\n"
+        "---\n\n"
+        "### 🎬 3. GUIONES COMPLETOS LISTOS PARA GRABAR\n\n"
+        "#### 📌 GUION 1 (Basado en Idea 1):\n"
+        "- **Gancho (0-3s):** [Acción/gesto visual] \"Texto exacto a decir\"\n"
+        "- **Desarrollo (3-20s):** [Indicación visual] \"Texto exacto a decir\"\n"
+        "- **Cierre y CTA (20-30s):** \"Texto exacto a decir\"\n\n"
+        "#### 📌 GUION 2 (Basado en Idea 2):\n"
+        "- **Gancho (0-3s):** [Acción/gesto visual] \"Texto exacto a decir\"\n"
+        "- **Desarrollo (3-20s):** [Indicación visual] \"Texto exacto a decir\"\n"
+        "- **Cierre y CTA (20-30s):** \"Texto exacto a decir\"\n\n"
+        "#### 📌 GUION 3 (Basado en Idea 3):\n"
+        "- **Gancho (0-3s):** [Acción/gesto visual] \"Texto exacto a decir\"\n"
+        "- **Desarrollo (3-20s):** [Indicación visual] \"Texto exacto a decir\"\n"
+        "- **Cierre y CTA (20-30s):** \"Texto exacto a decir\""
+    )
 
-    try:
-        with st.spinner("Organizando original en párrafos..."):
-            texto_orig_formateado = formatear_y_traducir(texto_original, GROQ_API_KEY, traducir=False)
-    except Exception:
-        texto_orig_formateado = texto_original
+    prompt_usuario = (
+        f"TRANSCRIPCIÓN DEL VIDEO DE REFERENCIA:\n\"\"\"{transcripcion}\"\"\"\n\n"
+        f"MI NICHO / TEMA / PRODUCTO:\n\"\"\"{nicho_usuario}\"\"\"\n\n"
+        "Analiza la referencia y crea las 3 ideas con sus guiones completos aplicados a mi tema."
+    )
 
-    if quiere_traducir:
-        try:
-            with st.spinner("Traduciendo y organizando en párrafos al español latino..."):
-                texto_traducido = formatear_y_traducir(texto_original, GROQ_API_KEY, traducir=True)
-        except Exception as e:
-            st.warning(f"No se pudo completar la traducción: {e}")
+    res = client.chat.completions.create(
+        model=modelo,
+        messages=[
+            {"role": "system", "content": prompt_sistema},
+            {"role": "user", "content": prompt_usuario}
+        ],
+        temperature=0.4
+    )
+    return res.choices[0].message.content
 
-    if texto_traducido:
-        tab_es, tab_orig = st.tabs(["🇪🇸 Traducción al Español Latino", "🌐 Idioma Original"])
-        with tab_es:
-            boton_copiar(texto_traducido, id_btn="btn_es")
-            st.text_area("Español Latinoamericano", value=texto_traducido, height=320)
-            st.download_button("📥 Descargar traducción (.txt)", data=texto_traducido, file_name="traduccion_espanol.txt", mime="text/plain")
-        with tab_orig:
-            boton_copiar(texto_orig_formateado, id_btn="btn_orig")
-            st.text_area("Texto Original", value=texto_orig_formateado, height=320)
-            st.download_button("📥 Descargar original (.txt)", data=texto_orig_formateado, file_name="original.txt", mime="text/plain")
-    else:
-        boton_copiar(texto_orig_formateado, id_btn="btn_solo_orig")
-        st.text_area("Transcripción en párrafos", value=texto_orig_formateado, height=320)
-        st.download_button("📥 Descargar (.txt)", data=texto_orig_formateado, file_name="transcripcion.txt", mime="text/plain")
+# ==============================================================
+# PESTAÑAS DE ENTRADA (LINK O ARCHIVO)
+# ==============================================================
+pestana1, pestana2 = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
-# --- PESTAÑA 1: POR ENLACE ---
 with pestana1:
     url = st.text_input("Pega el enlace de YouTube, TikTok o Instagram:")
-    traducir_link = st.checkbox("Traducir automáticamente al español de Latinoamérica", value=True, key="chk_link")
+    traducir_link = st.checkbox("Traducir al español latino si viene en otro idioma", value=True, key="chk_link")
     
-    if st.button("Transcribir y Organizar", type="primary"):
+    if st.button("Transcribir Video", type="primary"):
         if not GROQ_API_KEY.strip():
             st.error("Por favor ingresa tu Groq API Key en la barra lateral izquierda.")
         elif not url.strip():
@@ -238,17 +264,22 @@ with pestana1:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("1/3 Descargando audio por detrás..."):
+                with st.spinner("1/2 Descargando audio..."):
                     archivo_temporal = extraer_audio(url.strip())
 
-                with st.spinner("2/3 Transcribiendo con IA (Whisper)..."):
-                    texto = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
+                with st.spinner("2/2 Transcribiendo con IA (Whisper)..."):
+                    texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
 
-                if not texto:
+                if not texto_crudo:
                     st.warning("No se detectó voz en el video.")
                 else:
-                    mostrar_resultados(texto, traducir_link)
-
+                    st.session_state.texto_original = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=False)
+                    if traducir_link:
+                        st.session_state.texto_traducido = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=True)
+                    else:
+                        st.session_state.texto_traducido = None
+                    # Reiniciamos guiones si se procesa un nuevo video
+                    st.session_state.guiones_generados = None
             except Exception as e:
                 st.error(f"Error al procesar el video: {e}")
             finally:
@@ -258,12 +289,11 @@ with pestana1:
                     except Exception:
                         pass
 
-# --- PESTAÑA 2: SUBIR ARCHIVO ---
 with pestana2:
     archivo_subido = st.file_uploader("Arrastra tu video o audio aquí:", type=["mp3", "mp4", "m4a", "wav"])
-    traducir_file = st.checkbox("Traducir automáticamente al español de Latinoamérica", value=True, key="chk_file")
+    traducir_file = st.checkbox("Traducir al español latino si viene en otro idioma", value=True, key="chk_file")
     
-    if archivo_subido and st.button("Transcribir y Organizar archivo", type="primary"):
+    if archivo_subido and st.button("Transcribir Archivo Subido", type="primary"):
         if not GROQ_API_KEY.strip():
             st.error("Por favor ingresa tu Groq API Key en la barra lateral izquierda.")
         else:
@@ -273,9 +303,14 @@ with pestana2:
                     f.write(archivo_subido.getbuffer())
 
                 with st.spinner("Transcribiendo archivo con IA..."):
-                    texto = transcribir_con_groq(nombre_temp, GROQ_API_KEY)
+                    texto_crudo = transcribir_con_groq(nombre_temp, GROQ_API_KEY)
 
-                mostrar_resultados(texto, traducir_file)
+                st.session_state.texto_original = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=False)
+                if traducir_file:
+                    st.session_state.texto_traducido = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=True)
+                else:
+                    st.session_state.texto_traducido = None
+                st.session_state.guiones_generados = None
             except Exception as e:
                 st.error(f"Error: {e}")
             finally:
@@ -284,3 +319,60 @@ with pestana2:
                         os.remove(nombre_temp)
                     except Exception:
                         pass
+
+# ==============================================================
+# VISTA DE RESULTADOS Y GENERADOR DE GUIONES
+# ==============================================================
+if st.session_state.texto_original:
+    st.markdown("---")
+    st.subheader("📝 Transcripción del Video de Referencia")
+    
+    if st.session_state.texto_traducido:
+        tab_es, tab_orig = st.tabs(["🇪🇸 Traducción al Español Latino", "🌐 Idioma Original"])
+        with tab_es:
+            boton_copiar(st.session_state.texto_traducido, id_btn="btn_es")
+            st.text_area("Español Latinoamericano", value=st.session_state.texto_traducido, height=220)
+        with tab_orig:
+            boton_copiar(st.session_state.texto_original, id_btn="btn_orig")
+            st.text_area("Texto Original", value=st.session_state.texto_original, height=220)
+    else:
+        boton_copiar(st.session_state.texto_original, id_btn="btn_solo_orig")
+        st.text_area("Transcripción", value=st.session_state.texto_original, height=220)
+
+    # ----------------------------------------------------------
+    # SECCIÓN: CLONADOR Y GENERADOR DE GUIONES
+    # ----------------------------------------------------------
+    st.markdown("---")
+    st.header("🎯 Laboratorio de Guiones (Ingeniería Inversa)")
+    st.write("Usa la fórmula de este video para crear tus propios guiones:")
+    
+    nicho_input = st.text_input(
+        "¿De qué trata tu tema, producto o nicho?",
+        placeholder="Ej: Finanzas personales para jóvenes, Tienda de ropa deportiva, Clases de inglés..."
+    )
+    
+    if st.button("💡 Analizar Fórmula y Crear 3 Ideas con Guiones", type="primary"):
+        if not nicho_input.strip():
+            st.warning("Escribe de qué trata tu tema o nicho para poder generar las ideas y los guiones.")
+        else:
+            # Usamos el texto en español si existe, o el original
+            texto_base = st.session_state.texto_traducido if st.session_state.texto_traducido else st.session_state.texto_original
+            try:
+                with st.spinner("Desarmando la fórmula viral y escribiendo los 3 guiones..."):
+                    st.session_state.guiones_generados = generar_ideas_y_guiones(texto_base, nicho_input.strip(), GROQ_API_KEY)
+            except Exception as e:
+                st.error(f"Error generando guiones: {e}")
+
+    # Si los guiones ya se generaron, los mostramos
+    if st.session_state.guiones_generados:
+        st.success("¡Ideas y Guiones generados exitosamente!")
+        boton_copiar(st.session_state.guiones_generados, id_btn="btn_copiar_guiones")
+        
+        st.markdown(st.session_state.guiones_generados)
+        
+        st.download_button(
+            label="📥 Descargar Paquete de Guiones (.txt)",
+            data=st.session_state.guiones_generados,
+            file_name="guiones_adaptados.txt",
+            mime="text/plain"
+        )
