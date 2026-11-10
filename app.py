@@ -11,8 +11,7 @@ from groq import Groq
 # 1. Configuración de página
 st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
 
-MODELO_LLM = "llama-3.3-70b-versatile"
-
+MODELO_LLM = "llama-3.1-8b-instant"
 # 2. Cliente Groq en caché (Ultra-rápido)
 @st.cache_resource(show_spinner=False)
 def get_groq_client(api_key: str) -> Groq:
