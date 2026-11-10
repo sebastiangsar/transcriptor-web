@@ -8,13 +8,10 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-# 1. Configuración de página
 st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
 
-# Modelo predeterminado ultra-rápido y con alta capacidad de razonamiento
 MODELO_LLM = "llama-3.3-70b-versatile"
 
-# 2. Inicialización única (Cacheada para evitar retrasos en reruns)
 @st.cache_resource(show_spinner=False)
 def init_environment():
     try:
@@ -29,7 +26,6 @@ init_environment()
 def get_groq_client(api_key: str) -> Groq:
     return Groq(api_key=api_key)
 
-# 3. Estado de sesión
 claves_estado = [
     "texto_original", "texto_traducido", "guiones_generados", 
     "lead_magnets_generados"
@@ -38,7 +34,13 @@ for k in claves_estado:
     if k not in st.session_state:
         st.session_state[k] = None
 
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+# Manejo seguro de secretos sin crasheos
+GROQ_API_KEY = ""
+try:
+    if "GROQ_API_KEY" in st.secrets:
+        GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+except Exception:
+    GROQ_API_KEY = ""
 
 def buscar_archivo_cookies():
     for n in ["cookies.txt", "cookies.txt.txt", "instagram.com_cookies.txt"]:
@@ -46,9 +48,6 @@ def buscar_archivo_cookies():
             return n
     return None
 
-# ==============================================================
-# BARRA LATERAL: CONFIGURACIÓN
-# ==============================================================
 with st.sidebar:
     st.header("⚙️ Configuración")
     if not GROQ_API_KEY:
@@ -68,7 +67,7 @@ with st.sidebar:
     if archivo_cookies:
         st.success(f"Sesión activa ({archivo_cookies})")
     else:
-        st.caption("Sin cookies (necesarias para videos privados o con restricción)")
+        st.caption("Sin cookies.")
 
     st.markdown("---")
     if st.button("Limpiar datos", use_container_width=True):
@@ -79,7 +78,6 @@ with st.sidebar:
 st.title("🎬 Transcriptor & Estrategia Viral")
 st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
 
-# Botón de copiar rápido
 def boton_copiar(texto: str, id_btn="copiar"):
     if not texto:
         return
@@ -105,11 +103,7 @@ def boton_copiar(texto: str, id_btn="copiar"):
     """
     components.html(html_code, height=42)
 
-# ==============================================================
-# PROCESAMIENTO RÁPIDO DE AUDIO
-# ==============================================================
 def descargar_tiktok_directo(enlace: str):
-    """Descarga de alta velocidad para TikTok omitiendo FFmpeg"""
     try:
         resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=8)
         data = resp.json()
@@ -128,7 +122,6 @@ def descargar_tiktok_directo(enlace: str):
     return None
 
 def extraer_audio_rapido(enlace: str) -> str:
-    """Descarga audio directo en formato nativo sin recodificar a mp3"""
     if "tiktok.com" in enlace:
         tk = descargar_tiktok_directo(enlace)
         if tk:
@@ -138,7 +131,6 @@ def extraer_audio_rapido(enlace: str) -> str:
     temp_path = temp_file.name
     temp_file.close()
 
-    # bestaudio directo (m4a/aac/opus) -> Omite re-encoding de FFmpeg (10x más rápido)
     opciones = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'outtmpl': temp_path,
@@ -161,7 +153,6 @@ def extraer_audio_rapido(enlace: str) -> str:
 
 def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo="audio.mp3") -> str:
     client = get_groq_client(api_key)
-    
     if isinstance(archivo_o_buffer, str):
         with open(archivo_o_buffer, "rb") as f:
             contenido = f.read()
@@ -183,7 +174,6 @@ def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
         if traducir else
         "Organiza el siguiente texto en párrafos limpios y legibles sin alterar las palabras originales. Devuelve solo el texto."
     )
-
     try:
         res = client.chat.completions.create(
             model=MODELO_LLM,
@@ -198,7 +188,6 @@ def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
         return texto
 
 def procesar_texto_paralelo(texto_crudo: str, traducir: bool, api_key: str):
-    """Ejecuta formateo y traducción concurrentemente en hilos separados"""
     if not traducir:
         return formatear_o_traducir_texto(texto_crudo, api_key, traducir=False), None
 
@@ -274,9 +263,6 @@ ENTREGA OBLIGATORIA (Usa exactamente "=== DIVISION_LEADS ===" entre los guiones 
         return partes[0].strip(), partes[1].strip()
     return contenido.strip(), "No se pudo formatear por separado."
 
-# ==============================================================
-# INTERFAZ DE ENTRADA
-# ==============================================================
 tab_link, tab_file = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
 with tab_link:
@@ -306,7 +292,7 @@ with tab_link:
                         st.session_state.guiones_generados = None
                         st.session_state.lead_magnets_generados = None
             except Exception as e:
-                st.error(f"Error durante el proceso: {e}")
+                st.error(f"Error: {e}")
             finally:
                 if archivo_temporal and os.path.exists(archivo_temporal):
                     try:
@@ -323,7 +309,6 @@ with tab_file:
             st.error("Ingresa tu Groq API Key en la barra lateral.")
         else:
             try:
-                # Directo de memoria sin escribir a disco
                 with st.spinner("🎙️ Transcribiendo audio..."):
                     buffer_audio = archivo_subido.getvalue()
                     texto_crudo = transcribir_con_groq(buffer_audio, GROQ_API_KEY, nombre_archivo=archivo_subido.name)
@@ -341,17 +326,13 @@ with tab_file:
             except Exception as e:
                 st.error(f"Error: {e}")
 
-# ==============================================================
-# RESULTADOS
-# ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
-    
     col_nicho, col_btn_gen = st.columns([3, 1])
     with col_nicho:
         nicho_input = st.text_input(
             "Tu tema, producto o servicio:",
-            placeholder="Ej: Asesoría financiera, Café artesanal, Clases de inglés...",
+            placeholder="Ej: Asesoría financiera, Café artesanal...",
             label_visibility="collapsed"
         )
     with col_btn_gen:
@@ -368,7 +349,7 @@ if st.session_state.texto_original:
                     st.session_state.guiones_generados = guiones
                     st.session_state.lead_magnets_generados = leads
                 except Exception as e:
-                    st.error(f"Error generando contenido: {e}")
+                    st.error(f"Error: {e}")
 
     tab_out_trans, tab_out_guiones, tab_out_leads = st.tabs([
         "📝 Transcripción", 
