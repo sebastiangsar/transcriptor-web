@@ -5,11 +5,14 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 import yt_dlp
-import static_ffmpeg
 from groq import Groq
 
-# Activa FFmpeg automaticamente
-static_ffmpeg.add_paths()
+# Activa FFmpeg: en la nube usa el instalado por packages.txt; en Windows usa static_ffmpeg
+try:
+    import static_ffmpeg
+    static_ffmpeg.add_paths()
+except Exception:
+    pass
 
 st.set_page_config(page_title="Transcriptor Universal", page_icon="🎙️", layout="centered")
 
