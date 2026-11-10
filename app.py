@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-# 1. Configuración de página primero
+# 1. Configuración de página primero para evitar pantallas en blanco
 st.set_page_config(page_title="Suite Creativa & Alquimia Lírica", page_icon="⚡", layout="centered")
 
 # Activa FFmpeg: en la nube usa el de packages.txt; en local usa static_ffmpeg
@@ -38,135 +38,153 @@ try:
 except Exception:
     pass
 
-# BASE DE DATOS DE LA ESCALA DE DAVID R. HAWKINS
+# ==============================================================
+# MAPA COMPLETO DE HAWKINS: VIRALIDAD + TEMAS BAJOS Y ALTOS
+# ==============================================================
 HAWKINS_SCALE = {
     20: {
         "nombre": "Vergüenza (20)",
         "emocion": "Humillación / Desprecio",
-        "viralidad": "82%",
-        "tipo_viral": "Vulnerabilidad extrema ('Storytime de lo peor que me pasó').",
-        "color": "#991b1b",
-        "temas": ["Mi mayor fracaso y lo que aprendí", "El secreto que nadie se atreve a contar", "Superando la humillación pública"]
+        "viralidad": "84%",
+        "tipo_viral": "Exposición, vulnerabilidad extrema ('Storytime de lo peor que me pasó').",
+        "color": "#7f1d1d",
+        "temas_baja": ["El secreto que me avergüenza y nadie sabe", "Sintiéndome la burla de todos", "Escondiéndome del mundo"],
+        "temas_alta": ["Perdonarme por haberme fallado", "La humillación que forjó mi carácter", "Digno de existir sin pedir permiso"]
     },
     30: {
         "nombre": "Culpa (30)",
         "emocion": "Remordimiento / Castigo",
         "viralidad": "89%",
-        "tipo_viral": "Baladas de perdón, desahogo de errores pasados, redención.",
-        "color": "#b91c1c",
-        "temas": ["Pedir perdón antes de que sea tarde", "El error que casi me destruye", "Sanando con mi pasado"]
+        "tipo_viral": "Baladas desgarradoras de arrepentimiento y deudas morales.",
+        "color": "#991b1b",
+        "temas_baja": ["Fui yo quien arruinó todo", "Cargando con la culpa que me asfixia", "Demasiado tarde para pedir perdón"],
+        "temas_alta": ["Soltar la cruz que no me corresponde", "Me perdono por no haber sabido más", "De la culpa nace mi redención"]
     },
     50: {
         "nombre": "Apatía (50)",
         "emocion": "Desesperanza / Indiferencia",
-        "viralidad": "78%",
-        "tipo_viral": "Nihilismo, canciones 'sad' y vacío existencial compartido.",
-        "color": "#c2410c",
-        "temas": ["Cuando ya no sientes nada", "El cansancio de intentarlo siempre", "Despertar del vacío"]
+        "viralidad": "80%",
+        "tipo_viral": "Canciones 'sad', nihilismo adolescente y vacío existencial compartido.",
+        "color": "#9a3412",
+        "temas_baja": ["Ya nada me importa ni me duele", "El cansancio crónico de existir", "Viendo los días pasar sin sentido"],
+        "temas_alta": ["Una chispa en medio de la niebla", "Elegir sentir aunque dé miedo", "Despertar del coma emocional"]
     },
     75: {
         "nombre": "Pena / Duelo (75)",
         "emocion": "Tristeza / Pérdida",
-        "viralidad": "93%",
-        "tipo_viral": "Duelo compartido, despedidas, rupturas dolorosas (Efecto Adele).",
-        "color": "#ea580c",
-        "temas": ["Dejar ir a quien amabas", "El dolor de los recuerdos", "Aprender a vivir con tu ausencia"]
+        "viralidad": "94%",
+        "tipo_viral": "Duelo compartido, despedidas inevitables (Efecto Adele / Sam Smith).",
+        "color": "#c2410c",
+        "temas_baja": ["Extrañarte me está matando", "Nuestra casa vacía sin tu voz", "Llorando en la madrugada por ti"],
+        "temas_alta": ["Aprender a honrar lo que fue", "Agradecerte el tiempo compartido", "Llevarte en el alma sin dolor"]
     },
     100: {
         "nombre": "Miedo (100)",
         "emocion": "Ansiedad / Amenaza",
-        "viralidad": "90%",
-        "tipo_viral": "Temor a perder a alguien, paranoia, vulnerabilidad íntima.",
-        "color": "#d97706",
-        "temas": ["Miedo a quedarme solo", "La ansiedad que no me deja dormir", "Venciendo el pánico a fracasar"]
+        "viralidad": "91%",
+        "tipo_viral": "Paranoia, miedo al rechazo, temor a quedarse solo.",
+        "color": "#b45309",
+        "temas_baja": ["Pánico a que me dejes solo", "La ansiedad que me paraliza el pecho", "Corriendo de mis propios demonios"],
+        "temas_alta": ["Abrazar el miedo y avanzar temblando", "La tormenta no me puede quebrar", "Confiar en lo desconocido"]
     },
     125: {
         "nombre": "Deseo / Apego (125)",
         "emocion": "Anhelo / Lujuria / Obsesión",
-        "viralidad": "96%",
-        "tipo_viral": "Reggaeton, sensualidad, anhelo de lo prohibido, ambición (Efecto Trap).",
-        "color": "#ca8a04",
-        "temas": ["Obsesión por tenerte cerca", "Hambre insaciable de éxito y dinero", "Una noche inolvidable"]
+        "viralidad": "97%",
+        "tipo_viral": "Reggaeton, sensualidad insaciable, amor prohibido, ambición (Trap/Urbano).",
+        "color": "#a16207",
+        "temas_baja": ["Obsesión carnal que me domina", "Tenerte aunque seas un veneno", "Quererlo todo y nunca estar lleno"],
+        "temas_alta": ["Atracción consciente y magnética", "Canalizar la pasión en creación pura", "Amor que nutre sin encadenar"]
     },
     150: {
         "nombre": "Ira / Rabia (150)",
         "emocion": "Resentimiento / Venganza",
-        "viralidad": "98%",
-        "tipo_viral": "Despecho brutal, tiraderas, catarsis de rabia (Efecto Shakira / Eminem).",
+        "viralidad": "99%",
+        "tipo_viral": "Tiraderas brutales, despecho furioso, sed de venganza (Efecto Shakira / BZRP).",
         "color": "#dc2626",
-        "temas": ["Tiradera y ajuste de cuentas con un ex", "Rebeldía furiosa contra el sistema", "No me vuelves a ver la cara"]
+        "temas_baja": ["Tiradera sin piedad contra mi ex", "Que te duela el doble de lo que me dolió", "Ardiendo de furia contra la traición"],
+        "temas_alta": ["Convertir la rabia en disciplina de fuego", "Mi mejor venganza es mi éxito rotundo", "Poner límites inquebrantables"]
     },
     175: {
         "nombre": "Orgullo (175)",
         "emocion": "Superioridad / Egolatría",
-        "viralidad": "94%",
-        "tipo_viral": "Flexing, presumir logros, 'ahora mírame triunfar', empoderamiento de ego.",
+        "viralidad": "95%",
+        "tipo_viral": "Flexing, presumir riqueza y fama, 'nadie creía en mí' (Hip Hop / Corridos).",
         "color": "#e11d48",
-        "temas": ["Nadie creía en mí y ahora brillo", "Tengo lo que siempre soñé", "Soy intocable y estoy en la cima"]
+        "temas_baja": ["Mírame en la cima y tú abajo", "No necesito de nadie para ganar", "Soy mejor que todos ustedes"],
+        "temas_alta": ["Orgullo sano de mis raíces", "Honrar las cicatrices de la victoria", "Celebrar el triunfo con humildad"]
     },
     200: {
-        "nombre": "Coraje (200) [Umbral de Poder]",
+        "nombre": "Coraje (200) [Umbral]",
         "emocion": "Valentía / Determinación",
-        "viralidad": "92%",
-        "tipo_viral": "Himnos de batalla, levantarse tras la caída (Efecto Rocky).",
+        "viralidad": "93%",
+        "tipo_viral": "Himnos de batalla deportiva, levantarse de las cenizas (Efecto Rocky).",
         "color": "#16a34a",
-        "temas": ["Me caí diez veces y me levanto once", "El momento de dar el paso", "Sin miedo a empezar de cero"]
+        "temas_baja": ["Gritar aunque me tiemble la voz", "Luchar acorralado contra el mundo", "Dejar la sangre en el intento"],
+        "temas_alta": ["Me caigo diez veces y me paro once", "El momento exacto de dar el salto", "Arquitecto de mi propio destino"]
     },
     250: {
         "nombre": "Neutralidad (250)",
         "emocion": "Confianza / Desapego",
-        "viralidad": "81%",
-        "tipo_viral": "Filosofía 'me da igual lo que digan', fluir con la vida, relax total.",
+        "viralidad": "82%",
+        "tipo_viral": "Filosofía 'cero drama', fluir con lo que venga, desapego tranquilo.",
         "color": "#0d9488",
-        "temas": ["Ya nada me quita la tranquilidad", "Vivir sin drama ni ataduras", "Dejar que todo fluya a su tiempo"]
+        "temas_baja": ["Me cansé de pelear por tonterías", "Que cada quien haga lo suyo", "Poco me importa lo que opinen"],
+        "temas_alta": ["La dulce calma de no reaccionar", "Fluyendo en armonía con el río", "Tranquilidad por encima de la razón"]
     },
     310: {
         "nombre": "Voluntad (310)",
         "emocion": "Optimismo / Disciplina",
-        "viralidad": "87%",
-        "tipo_viral": "Motivación de gimnasio, disciplina inquebrantable, superación constante.",
+        "viralidad": "88%",
+        "tipo_viral": "Motivación imparable, disciplina de hierro, mentalidad de crecimiento.",
         "color": "#0284c7",
-        "temas": ["Disciplina sobre motivación", "Construyendo mi propio destino", "Cada día un 1% mejor"]
+        "temas_baja": ["Forzar la máquina hasta el límite", "No dormir hasta conseguir la meta", "La obsesión de ganar a toda costa"],
+        "temas_alta": ["Disciplina diaria con amor al arte", "Construyendo un legado paso a paso", "Optimismo inquebrantable ante el reto"]
     },
     350: {
         "nombre": "Aceptación (350)",
         "emocion": "Perdón / Trascendencia",
-        "viralidad": "91%",
-        "tipo_viral": "Cierre de ciclos con paz, perdonar al pasado, sanar sin rencor.",
+        "viralidad": "92%",
+        "tipo_viral": "Cierre de ciclos en paz, reconciliación profunda, sanar el pasado.",
         "color": "#2563eb",
-        "temas": ["Te perdono no por ti, sino por mí", "Cerrar la puerta con gratitud", "Aceptar quién fui para amar quién soy"]
+        "temas_baja": ["Aceptar la derrota y soltar", "Reconocer que se terminó el juego", "Firmar la tregua con mi dolor"],
+        "temas_alta": ["Te perdono y me libero para siempre", "Cerrar la puerta con gratitud genuina", "Aceptar quién fui para amar quién soy"]
     },
     400: {
         "nombre": "Razón / Sabiduría (400)",
         "emocion": "Claridad / Discernimiento",
-        "viralidad": "84%",
-        "tipo_viral": "Letras con juegos mentales, metáforas profundas, rap consciente.",
+        "viralidad": "85%",
+        "tipo_viral": "Rap consciente, metáforas filosóficas, juegos de palabras profundos.",
         "color": "#4f46e5",
-        "temas": ["Entender las leyes del juego", "La mente sobre la emoción", "Desenmascarando la ilusión"]
+        "temas_baja": ["Diseccionando la falsedad de la sociedad", "La trampa mental de las masas", "Análisis frío del desamor"],
+        "temas_alta": ["Comprender el orden oculto del caos", "Sabiduría destilada en rima pura", "La mente serena que todo lo ve"]
     },
     500: {
         "nombre": "Amor Incondicional (500)",
         "emocion": "Compasión / Reverencia",
-        "viralidad": "95%",
-        "tipo_viral": "Himnos atemporales de amor puro y conexión universal (Coldplay, Marley).",
+        "viralidad": "96%",
+        "tipo_viral": "Himnos eternos de amor que erizan la piel (Coldplay, Bob Marley).",
         "color": "#7c3aed",
-        "temas": ["Amor que no pide nada a cambio", "Sanar al mundo con bondad", "Encontrarte en los ojos de todos"]
+        "temas_baja": ["Amor que duele de tan inmenso", "Darlo todo sin esperar rescate", "Amar en medio de la tormenta"],
+        "temas_alta": ["Amor que no pide nada a cambio", "Sanar al mundo con la mirada", "Encontrarte en los ojos de todos"]
     },
     540: {
         "nombre": "Alegría Serena (540)",
         "emocion": "Éxtasis / Celebración",
-        "viralidad": "96%",
-        "tipo_viral": "Canciones de felicidad contagiosa ('Happy', funk, baile sin motivo).",
+        "viralidad": "97%",
+        "tipo_viral": "Fiesta contagiosa, felicidad pura de vivir ('Happy', funk, baile sin motivo).",
         "color": "#c026d3",
-        "temas": ["Celebrar el simple milagro de respirar", "Bailar bajo la lluvia", "La risa que contagia a todos"]
+        "temas_baja": ["Bailar para olvidar las penas", "Locura de euforia desmedida", "Gritar hasta que se vaya el dolor"],
+        "temas_alta": ["El milagro glorioso de estar vivos", "Bailar bajo la lluvia sin motivo", "La risa que despierta corazones"]
     },
     600: {
         "nombre": "Paz / Unidad (600)",
         "emocion": "Serenidad / Trascendencia",
-        "viralidad": "76%",
-        "tipo_viral": "Música contemplativa profunda, calma inquebrantable.",
+        "viralidad": "78%",
+        "tipo_viral": "Música contemplativa, silencio sonoro, trance pacífico.",
         "color": "#059669",
-        "temas": ["El silencio donde habita todo", "Ser uno con el universo", "La calma inquebrantable del alma"]
+        "temas_baja": ["El silencio después de la catástrofe", "Aislarse del ruido del mundo", "La calma de la rendición"],
+        "temas_alta": ["El océano de paz dentro del pecho", "Ser uno con el latido cósmico", "La luz infinita que nunca se apaga"]
     }
 }
 
@@ -178,7 +196,7 @@ def buscar_archivo_cookies():
     return None
 
 # ==============================================================
-# BARRA LATERAL: CONFIGURACIÓN + LEAD MAGNETS
+# BARRA LATERAL
 # ==============================================================
 with st.sidebar:
     st.header("⚙️ Configuración")
@@ -203,25 +221,18 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("🎁 Recursos Gratuitos")
-    
-    with st.expander("⭐ Nivel 1: Alto Valor (Masivo)"):
+    with st.expander("⭐ Nivel 1: Alto Valor"):
         st.markdown("**La Bóveda de las 50 Fórmulas Virales**")
-        st.caption("Estructuras psicológicas que dominan el algoritmo.")
         st.button("Descargar", key="lm1")
-
-    with st.expander("🎯 Nivel 2: Específico (Táctico)"):
-        st.markdown("**Kit de 30 Ganchos + Plantilla de Teleprónter**")
-        st.caption("Frases de apertura con acotaciones visuales segundo a segundo.")
+    with st.expander("🎯 Nivel 2: Específico"):
+        st.markdown("**Kit de 30 Ganchos + Plantilla**")
         st.button("Obtener", key="lm2")
-
-    with st.expander("👑 Nivel 3: Personalizado (1 a 1)"):
-        st.markdown("**Auditoría de tu Cuenta + Guion Insignia**")
-        st.caption("Analizamos tu perfil y rediseñamos tu video con menor rendimiento.")
-        st.text_input("Tu @usuario o enlace:", placeholder="@tucuenta")
+    with st.expander("👑 Nivel 3: Personalizado"):
+        st.markdown("**Auditoría 1 a 1 de tu Cuenta**")
+        st.text_input("Tu @usuario:", placeholder="@tucuenta")
         st.button("Solicitar", key="lm3")
 
 def boton_copiar(texto, id_btn="copiar"):
-    """Botón de 1 sola palabra para copiar al portapapeles con guardas seguras"""
     if not texto:
         return
     texto_json = json.dumps(texto)
@@ -315,42 +326,15 @@ def transcribir_con_groq(ruta_archivo, api_key):
         )
     return transcription
 
-def obtener_modelo_texto_activo(client):
-    preferidos = [
-        "openai/gpt-oss-120b", "qwen/qwen3.8-27b",
-        "llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it"
-    ]
-    try:
-        disponibles = [m.id for m in client.models.list().data]
-        for p in preferidos:
-            if p in disponibles:
-                return p
-        for m in disponibles:
-            if "whisper" not in m.lower():
-                return m
-    except Exception:
-        pass
-    return "llama-3.1-8b-instant"
-
 def formatear_y_traducir(texto, api_key, traducir=True):
     client = Groq(api_key=api_key)
-    modelo = obtener_modelo_texto_activo(client)
-    
     if traducir:
-        instruccion = (
-            "Eres un traductor y editor profesional. Traduce el texto al español de Latinoamérica neutro. "
-            "Divide el texto en párrafos coherentes y cómodos de leer, separados por saltos de línea dobles. "
-            "Corrige la puntuación. No agregues notas; devuelve solo el texto final."
-        )
+        instruccion = "Traduce el texto al español latino neutro en párrafos limpios separados por salto doble. Devuelve solo el texto."
     else:
-        instruccion = (
-            "Eres un editor profesional. Organiza el texto en párrafos coherentes separados por saltos de línea dobles. "
-            "Corrige la puntuación básica sin cambiar palabras ni idioma. "
-            "No agregues notas; devuelve solo el texto formateado."
-        )
+        instruccion = "Organiza el texto en párrafos limpios separados por doble salto de línea. Devuelve solo el texto."
 
     res = client.chat.completions.create(
-        model=modelo,
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": instruccion},
             {"role": "user", "content": texto}
@@ -361,71 +345,32 @@ def formatear_y_traducir(texto, api_key, traducir=True):
 
 def generar_ideas_y_guiones(transcripcion, nicho_usuario, api_key):
     client = Groq(api_key=api_key)
-    modelo = obtener_modelo_texto_activo(client)
-    
     prompt_sistema = (
-        "Eres un estratega de contenido viral y director de guiones experto en videos cortos (Reels, TikTok, Shorts). "
-        "Desarma la fórmula psicológica del video de referencia y genera 3 ideas con sus guiones adaptados al nicho del usuario.\n\n"
-        "ESTRUCTURA DE RESPUESTA:\n"
-        "### 🧠 1. RADIOGRAFÍA DE LA FÓRMULA VIRAL\n"
-        "- **El Gancho (Hook):** Técnica psicológica que usó y por qué retiene.\n"
-        "- **Estructura de Retención:** Manejo del ritmo y tensión.\n"
-        "- **Remate y CTA:** Estrategia de cierre.\n\n"
-        "---\n"
-        "### 💡 2. BANCO DE 3 IDEAS PARA TU NICHO\n"
-        "- **Idea 1 (Error/Dolor):** Concepto claro.\n"
-        "- **Idea 2 (Secreto/Curiosidad):** Concepto claro.\n"
-        "- **Idea 3 (Hack/Acción Rápida):** Concepto claro.\n\n"
-        "---\n"
-        "### 🎬 3. GUIONES COMPLETOS LISTOS PARA GRABAR\n\n"
-        "#### 📌 GUION 1 (Basado en Idea 1):\n"
-        "- **Gancho (0-3s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Desarrollo (3-20s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Cierre y CTA (20-30s):** \"Texto exacto\"\n\n"
-        "#### 📌 GUION 2 (Basado en Idea 2):\n"
-        "- **Gancho (0-3s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Desarrollo (3-20s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Cierre y CTA (20-30s):** \"Texto exacto\"\n\n"
-        "#### 📌 GUION 3 (Basado en Idea 3):\n"
-        "- **Gancho (0-3s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Desarrollo (3-20s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Cierre y CTA (20-30s):** \"Texto exacto\""
+        "Eres un estratega de contenido viral. Desarma la fórmula del video y genera 3 ideas con sus guiones adaptados.\n"
+        "Estructura: 1. Radiografía viral, 2. Banco de 3 ideas, 3. Guiones con acotaciones visuales [0-3s], [3-20s], [20-30s]."
     )
-
-    prompt_usuario = (
-        f"REFERENCIA:\n\"\"\"{transcripcion}\"\"\"\n\n"
-        f"MI NICHO / TEMA:\n\"\"\"{nicho_usuario}\"\"\""
-    )
-
     res = client.chat.completions.create(
-        model=modelo,
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": prompt_usuario}
+            {"role": "user", "content": f"REFERENCIA:\n{transcripcion}\n\nNICHO:\n{nicho_usuario}"}
         ],
         temperature=0.4
     )
     return res.choices[0].message.content
 
 # ==============================================================
-# ALQUIMIA LÍRICA (HAWKINS) - MOTOR ROBUSTO Y SEGURO
+# ALQUIMIA LÍRICA: MOTOR DE LLAMADA DIRECTA (100% GARANTIZADO)
 # ==============================================================
 def estructurar_letra_musical(letra_cruda, api_key):
-    """Estructura la letra en párrafos limpios y genera traducción al español"""
     client = Groq(api_key=api_key)
-    modelo = obtener_modelo_texto_activo(client)
-    
     instruccion = (
-        "Eres un productor y compositor musical experto. Analiza el texto de esta canción "
-        "y organízalo en su estructura musical formal con formato impecable.\n\n"
-        "REGLAS:\n"
-        "1. Etiqueta claramente cada sección entre corchetes: [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Outro].\n"
-        "2. Separa cada sección con un salto de línea doble (\\n\\n).\n"
-        "3. Cada verso debe ser una línea individual y limpia.\n"
-        "4. Conserva el idioma y rima original. Devuelve únicamente la letra estructurada."
+        "Eres un productor musical. Organiza este texto en bloques musicales con corchetes: "
+        "[Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Chorus], [Outro]. "
+        "Separa cada bloque con doble salto de línea (\\n\\n). Cada verso en una línea individual."
     )
     res_orig = client.chat.completions.create(
-        model=modelo,
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": instruccion},
             {"role": "user", "content": letra_cruda}
@@ -434,13 +379,9 @@ def estructurar_letra_musical(letra_cruda, api_key):
     )
     letra_orig = res_orig.choices[0].message.content
 
-    instruccion_es = (
-        "Eres un traductor y letrista musical. Traduce la siguiente letra estructurada al español de forma poética y natural.\n"
-        "Mantén exactamente las etiquetas [Verso 1], [Pre-Coro], [Coro], [Puente], etc., y los saltos de línea dobles entre secciones. "
-        "Devuelve solo la traducción limpia."
-    )
+    instruccion_es = "Traduce al español manteniendo exactamente las etiquetas [Verso 1], [Coro], etc. y los dobles saltos de línea."
     res_es = client.chat.completions.create(
-        model=modelo,
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": instruccion_es},
             {"role": "user", "content": letra_orig}
@@ -450,37 +391,22 @@ def estructurar_letra_musical(letra_cruda, api_key):
     return letra_orig, res_es.choices[0].message.content
 
 def calibrar_hawkins_estructurado(letra_texto, api_key):
-    """Mide la frecuencia de Hawkins"""
     client = Groq(api_key=api_key)
-    modelo = obtener_modelo_texto_activo(client)
-    
-    prompt = f"""Eres un analista de psicología musical experto en el Mapa de Conciencia de David R. Hawkins (Power vs. Force).
-Analiza la siguiente letra:
+    prompt = f"""Analiza la siguiente letra según la Escala de Hawkins (20 a 600 puntos):
 \"\"\"{letra_texto}\"\"\"
 
-Determina:
-1. Frecuencia y número de puntos dominante (ej: Culpa 30, Ira 150, Deseo 125, etc.).
-2. Frecuencia Opuesta de Elevación.
-3. Clave Alquímica (concepto central de transformación).
-
-Responde con líneas que comiencen exactamente con estas etiquetas:
-FRECUENCIA: [Emoción y número de puntos]
-ELEVACION: [Nivel de alta frecuencia hacia donde elevar]
-CLAVE: [Concepto central de redención o soberanía]"""
+Responde exactamente con estas líneas:
+FRECUENCIA: [Emoción y puntos]
+ELEVACION: [Frecuencia opuesta sugerida]
+CLAVE: [Concepto clave de transformación]"""
 
     res = client.chat.completions.create(
-        model=modelo,
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2
     )
-    
     lineas = res.choices[0].message.content.split("\n")
-    datos = {
-        "frecuencia": "Culpa (30 puntos)",
-        "elevacion": "Aceptación (350) / Amor Incondicional (500)",
-        "clave": "Perdón propio y redención"
-    }
-    
+    datos = {"frecuencia": "Culpa (30 puntos)", "elevacion": "Aceptación (350)", "clave": "Perdón y redención"}
     for l in lineas:
         if l.startswith("FRECUENCIA:"):
             datos["frecuencia"] = l.replace("FRECUENCIA:", "").strip()
@@ -488,79 +414,53 @@ CLAVE: [Concepto central de redención o soberanía]"""
             datos["elevacion"] = l.replace("ELEVACION:", "").strip()
         elif l.startswith("CLAVE:"):
             datos["clave"] = l.replace("CLAVE:", "").strip()
-            
     return datos
 
-def transmutar_letra_motor_unificado(letra_base, frec_target, rima_tipo, modo, tema_personalizado, api_key):
-    """Genera las letras en Inglés y Español en una SOLA llamada rápida sin fallos de cuota"""
+def transmutar_letra_directa(letra_base, frec_num, rima_tipo, modo, tema, api_key):
+    """Llamada ultra rápida garantizada que genera Español e Inglés con párrafos limpios"""
     client = Groq(api_key=api_key)
-    modelo = obtener_modelo_texto_activo(client)
-    
-    frec_data = HAWKINS_SCALE.get(frec_target, HAWKINS_SCALE[500])
-    
+    frec_info = HAWKINS_SCALE.get(frec_num, HAWKINS_SCALE[500])
+
     if modo == "misma":
-        guia_modo = (
-            "MODO: ELEVAR LA MISMA HISTORIA:\n"
-            "- Conserva los mismos personajes, dolor o vivencia de la canción original.\n"
-            "- Eleva la perspectiva: en lugar de rencor o culpa, llévalo hacia la sabiduría, el amor propio y el perdón.\n"
-            "- Mantén la misma historia pero sanada en alta frecuencia."
+        enfoque_prompt = (
+            "ENFOQUE: REESCRIBIR LA MISMA HISTORIA EN ESTA FRECUENCIA.\n"
+            "- Mantén los mismos personajes, dolor o situación original.\n"
+            f"- Reescribe el mensaje desde la frecuencia: {frec_info['nombre']} ({frec_info['emocion']})."
         )
     else:
-        guia_modo = (
-            f"MODO: CREAR NUEVA LETRA CON TEMÁTICA:\n"
-            f"- Temática elegida: \"{tema_personalizado}\"\n"
-            "- Desarrolla esta temática adaptada a la frecuencia indicada."
+        enfoque_prompt = (
+            f"ENFOQUE: CREAR CANCIÓN SOBRE ESTA TEMÁTICA: \"{tema}\".\n"
+            f"- Desarrolla esta temática vibrando en: {frec_info['nombre']} ({frec_info['emocion']})."
         )
 
-    prompt = f"""You are a master lyrical alchemist and songwriter.
-Elevate the lyrics into the target Hawkins vibrational state: {frec_data['nombre']} ({frec_data['emocion']}).
+    prompt = f"""Eres un letrista y compositor maestro. Tu tarea es componer la letra de la canción.
 
-RHYME AND METRIC CONSTRAINTS:
-- Mandatory Rhyme Scheme: {rima_tipo} (Apply this exact rhyme pattern consistently to every stanza).
-- Structure: Clear blocks with labels: [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Chorus], [Outro].
-- Spacing: Add double newlines (\\n\\n) between every block.
-- Cadence: Maintain the rhythmic syllable count so it can be sung over the original music beat.
+{enfoque_prompt}
 
-{guia_modo}
+REGLAS DE MÉTRICA Y RIMA:
+1. Esquema de rima obligatorio en todas las estrofas: {rima_tipo}.
+2. Estructura formal obligatoria: [Verso 1], [Pre-Coro], [Coro], [Verso 2], [Puente], [Coro Final], [Outro].
+3. Formato: Separa cada bloque musical con un salto de línea doble (\\n\\n). Cada verso en una línea limpia y cantable.
 
-ORIGINAL LYRICS:
-\"\"\"{letra_base}\"\"\"
+LETRA DE REFERENCIA:
+{letra_base}
 
-OUTPUT FORMAT (STRICT):
-Output the ENGLISH lyrics first, followed immediately by the separator "=== DIVISION_IDIOMA ===", and then the SPANISH version adapted with natural poetic flow and the same rhyme scheme.
-Example:
-[Verse 1]
-...
-
-[Chorus]
-...
-
-=== DIVISION_IDIOMA ===
-
-[Verso 1]
-...
-
-[Coro]
-...
+ENTREGA OBLIGATORIA:
+Entrega primero la versión en ESPAÑOL, luego exactamente la línea de separación "=== DIVISION_IDIOMA ===", y después la versión en INGLÉS adaptada.
 """
 
     res = client.chat.completions.create(
-        model=modelo,
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.4
     )
-    
-    texto_completo = res.choices[0].message.content
-    partes = texto_completo.split("=== DIVISION_IDIOMA ===")
-    
-    if len(partes) >= 2:
-        t_en = partes[0].strip()
-        t_es = partes[1].strip()
+
+    contenido = res.choices[0].message.content
+    if "=== DIVISION_IDIOMA ===" in contenido:
+        partes = contenido.split("=== DIVISION_IDIOMA ===")
+        return partes[0].strip(), partes[1].strip()
     else:
-        t_en = texto_completo.strip()
-        t_es = texto_completo.strip()
-        
-    return t_en, t_es
+        return contenido.strip(), contenido.strip()
 
 # ==============================================================
 # PESTAÑAS PRINCIPALES
@@ -586,9 +486,9 @@ with tab_videos:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("1/2 Descargando audio ultra comprimido..."):
+                with st.spinner("Descargando audio..."):
                     archivo_temporal = extraer_audio(url.strip())
-                with st.spinner("2/2 Transcribiendo con Groq Whisper..."):
+                with st.spinner("Transcribiendo con Groq Whisper..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
 
                 if not texto_crudo:
@@ -645,11 +545,11 @@ with tab_videos:
             st.markdown(st.session_state.guiones_generados)
 
 # --------------------------------------------------------------
-# PESTAÑA 2: ALQUIMIA LÍRICA (SLIDER HAWKINS + VIRALIDAD + RIMA + TRANSMUTACIÓN)
+# PESTAÑA 2: ALQUIMIA LÍRICA (MOTOR DIRECTO Y SEGURO)
 # --------------------------------------------------------------
 with tab_musica:
     st.subheader("🎵 Alquimia Lírica (Escala de Hawkins)")
-    st.caption("Estructura canciones, calibra su resonancia viral y transmuta la letra en alta vibración.")
+    st.caption("Pega cualquier letra, analiza su resonancia viral y transmútala.")
     
     letra_manual = st.text_area(
         "Pega aquí la letra de la canción:",
@@ -662,37 +562,30 @@ with tab_musica:
         if not GROQ_API_KEY.strip():
             st.error("Ingresa tu Groq API Key en la barra lateral.")
         elif not letra_manual.strip():
-            st.warning("Por favor pega la letra de la canción antes de escanear.")
+            st.warning("Pega la letra de la canción antes de escanear.")
         else:
-            with st.spinner("Estructurando bloques en párrafos limpios y preparando traducción..."):
+            with st.spinner("Estructurando bloques en párrafos limpios..."):
                 try:
                     orig, es = estructurar_letra_musical(letra_manual.strip(), GROQ_API_KEY)
                     st.session_state.letra_esc_orig = orig
                     st.session_state.letra_esc_es = es
-                    st.session_state.analisis_hawkins = None
-                    st.session_state.letra_trans_en = None
-                    st.session_state.letra_trans_es = None
                 except Exception as e:
                     st.error(f"Error al estructurar: {e}")
 
-    # Si hay letra escaneada, la mostramos en pestañas
+    # Si hay letra escaneada, la mostramos
     if st.session_state.letra_esc_orig:
-        st.markdown("---")
-        st.markdown("#### 🎼 Estructura Musical Detectada")
-        
+        st.markdown("#### 🎼 Letra Estructurada")
         tab_l_orig, tab_l_es = st.tabs(["🌐 Original", "🇪🇸 Traducción al Español"])
         with tab_l_orig:
             boton_copiar(st.session_state.letra_esc_orig, id_btn="cp_esc_orig")
-            st.text_area("Estructura Original", value=st.session_state.letra_esc_orig, height=200)
+            st.text_area("Original", value=st.session_state.letra_esc_orig, height=180)
         with tab_l_es:
             boton_copiar(st.session_state.letra_esc_es, id_btn="cp_esc_es")
-            st.text_area("Estructura en Español", value=st.session_state.letra_esc_es, height=200)
+            st.text_area("Español", value=st.session_state.letra_esc_es, height=180)
 
         # 2. BOTÓN: CALIBRAR
-        st.markdown("---")
-        st.markdown("#### 🔮 Calibración del Texto Original")
         if st.button("Calibrar", key="btn_calibrar"):
-            with st.spinner("Midiendo frecuencia de la canción original..."):
+            with st.spinner("Midiendo frecuencia..."):
                 try:
                     st.session_state.analisis_hawkins = calibrar_hawkins_estructurado(
                         st.session_state.letra_esc_orig, GROQ_API_KEY
@@ -702,18 +595,17 @@ with tab_musica:
 
         if st.session_state.analisis_hawkins:
             h = st.session_state.analisis_hawkins
-            st.info(f"📊 **Frecuencia Original Detectada:** {h.get('frecuencia')} | **Sugerencia:** {h.get('elevacion')} | **Clave:** {h.get('clave')}")
+            st.info(f"📊 **Frecuencia Detectada:** {h.get('frecuencia')} | **Elevación:** {h.get('elevacion')} | **Clave:** {h.get('clave')}")
 
     # ==============================================================
-    # PANEL INTERACTIVO DE FRECUENCIA & VIRALIDAD (SLIDER HAWKINS)
+    # SLIDER HAWKINS + VIRALIDAD + TEMAS BAJOS Y ALTOS
     # ==============================================================
     st.markdown("---")
-    st.markdown("### 🎚️ Escala de Vibración & Conexión Viral (Hawkins)")
-    st.caption("Desliza por la escala para descubrir el potencial de viralidad y los 3 temas más potentes de cada frecuencia:")
+    st.markdown("### 🎚️ Escala de Vibración & Conexión Viral")
+    st.caption("Desliza para explorar la resonancia viral y los temas en cada nivel:")
 
-    # Slider interactivo instantáneo
     frec_seleccionada = st.select_slider(
-        "Selecciona el Nivel de Frecuencia:",
+        "Nivel de Frecuencia Hawkins:",
         options=list(HAWKINS_SCALE.keys()),
         value=500,
         format_func=lambda x: HAWKINS_SCALE[x]["nombre"]
@@ -721,31 +613,42 @@ with tab_musica:
 
     info_frec = HAWKINS_SCALE[frec_seleccionada]
 
-    # Tarjeta visual interactiva
+    # Tarjeta de Viralidad y Temas (Bajos y Altos)
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #090d16 0%, #111827 100%); border-left: 6px solid {info_frec['color']}; padding: 18px 22px; border-radius: 12px; margin: 15px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+    <div style="background: linear-gradient(135deg, #090d16 0%, #111827 100%); border-left: 6px solid {info_frec['color']}; padding: 18px 22px; border-radius: 12px; margin: 15px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h3 style="margin: 0; color: #ffffff;">{info_frec['nombre']}</h3>
             <span style="background-color: {info_frec['color']}; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 14px;">🔥 Viralidad: {info_frec['viralidad']}</span>
         </div>
         <p style="margin: 8px 0 4px 0; color: #94a3b8; font-size: 14px;"><b>Campo Emocional:</b> <span style="color: #f1f5f9;">{info_frec['emocion']}</span></p>
-        <p style="margin: 4px 0 10px 0; color: #94a3b8; font-size: 14px;"><b>Psicología de Conexión:</b> <span style="color: #38bdf8;">{info_frec['tipo_viral']}</span></p>
-        <div style="background-color: rgba(255,255,255,0.05); padding: 10px 14px; border-radius: 8px; margin-top: 10px;">
-            <span style="color: #34d399; font-weight: bold; font-size: 13px;">💡 3 Temas de Alta Viralidad en esta Frecuencia:</span>
-            <ul style="margin: 6px 0 0 0; padding-left: 20px; color: #e2e8f0; font-size: 13px;">
-                <li>{info_frec['temas'][0]}</li>
-                <li>{info_frec['temas'][1]}</li>
-                <li>{info_frec['temas'][2]}</li>
-            </ul>
+        <p style="margin: 4px 0 12px 0; color: #94a3b8; font-size: 14px;"><b>Psicología de Conexión:</b> <span style="color: #38bdf8;">{info_frec['tipo_viral']}</span></p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+            <div style="background-color: rgba(220, 38, 38, 0.12); border: 1px solid rgba(220, 38, 38, 0.3); padding: 10px; border-radius: 8px;">
+                <span style="color: #f87171; font-weight: bold; font-size: 13px;">🔥 3 Temas de Baja Vibración (Catarsis / Despecho):</span>
+                <ul style="margin: 6px 0 0 0; padding-left: 18px; color: #fecaca; font-size: 12px;">
+                    <li>{info_frec['temas_baja'][0]}</li>
+                    <li>{info_frec['temas_baja'][1]}</li>
+                    <li>{info_frec['temas_baja'][2]}</li>
+                </ul>
+            </div>
+            <div style="background-color: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px; border-radius: 8px;">
+                <span style="color: #34d399; font-weight: bold; font-size: 13px;">✨ 3 Temas de Alta Vibración (Elevación / Poder):</span>
+                <ul style="margin: 6px 0 0 0; padding-left: 18px; color: #a7f3d0; font-size: 12px;">
+                    <li>{info_frec['temas_alta'][0]}</li>
+                    <li>{info_frec['temas_alta'][1]}</li>
+                    <li>{info_frec['temas_alta'][2]}</li>
+                </ul>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # ==============================================================
-    # CONFIGURACIÓN DE TRANSMUTACIÓN (RIMA Y MODO)
+    # CONFIGURACIÓN Y TRANSMUTACIÓN DIRECTA
     # ==============================================================
     st.markdown("---")
-    st.markdown("### ✨ Configurar Transmutación")
+    st.markdown("### ✨ Configurar y Componer Letra")
 
     col_rima, col_modo = st.columns([1, 1])
 
@@ -758,62 +661,72 @@ with tab_musica:
 
     with col_modo:
         modo_elegido = st.radio(
-            "Enfoque de la letra:",
-            options=["Elevar la misma historia", "Usar tema de la lista", "Tema propio"],
+            "Enfoque de Composición:",
+            options=[
+                "Elevar la misma historia original",
+                "Elegir tema de Baja Vibración (Catarsis)",
+                "Elegir tema de Alta Vibración (Elevación)",
+                "Tema libre personalizado"
+            ],
             index=0
         )
 
-    tema_personalizado = ""
-    if modo_elegido == "Usar tema de la lista":
-        tema_personalizado = st.selectbox("Selecciona uno de los 3 temas virales:", options=info_frec['temas'])
-    elif modo_elegido == "Tema propio":
-        tema_personalizado = st.text_input("Escribe tu temática:", placeholder="Ej: Triunfo personal, Paz mental...")
+    tema_para_enviar = ""
+    if modo_elegido == "Elegir tema de Baja Vibración (Catarsis)":
+        tema_para_enviar = st.selectbox("Selecciona el tema de baja vibración:", options=info_frec['temas_baja'])
+    elif modo_elegido == "Elegir tema de Alta Vibración (Elevación)":
+        tema_para_enviar = st.selectbox("Selecciona el tema de alta vibración:", options=info_frec['temas_alta'])
+    elif modo_elegido == "Tema libre personalizado":
+        tema_para_enviar = st.text_input("Escribe tu temática:", placeholder="Ej: Triunfo personal, Paz mental, Un amor sano...")
 
-    # 3. BOTÓN: TRANSMUTAR (MOTOR ROBUSTO UNIFICADO)
+    # CONTENEDOR VISUAL DIRECTAMENTE DEBAJO DEL BOTÓN TRANSMUTAR
+    st.markdown(" ")
+    
+    # 3. BOTÓN: TRANSMUTAR
     if st.button("Transmutar", type="primary", key="btn_transmutar"):
         if not GROQ_API_KEY.strip():
-            st.error("Ingresa tu Groq API Key en la barra lateral.")
+            st.error("Por favor ingresa tu Groq API Key en la barra lateral.")
         else:
-            # Determinamos la letra base (escaneada o directa)
-            letra_base_final = st.session_state.letra_esc_orig if st.session_state.letra_esc_orig else letra_manual.strip()
+            letra_base = st.session_state.letra_esc_orig or letra_manual.strip()
             
-            if not letra_base_final:
-                st.warning("Pega la letra de la canción arriba antes de transmutar.")
-            elif modo_elegido == "Tema propio" and not tema_personalizado.strip():
-                st.warning("Escribe la temática que deseas para la nueva letra.")
+            if not letra_base:
+                st.warning("Por favor pega la letra de la canción arriba en el recuadro antes de transmutar.")
+            elif modo_elegido == "Tema libre personalizado" and not tema_para_enviar.strip():
+                st.warning("Por favor escribe la temática que deseas.")
             else:
-                modo_cod = "misma" if modo_elegido == "Elevar la misma historia" else "nueva"
-                with st.spinner("Transmutando lírica con rima precisa en alta velocidad..."):
+                modo_codigo = "misma" if modo_elegido == "Elevar la misma historia original" else "nuevo"
+                
+                with st.spinner("Componiendo letra rítmica en párrafos limpios (Español e Inglés)..."):
                     try:
-                        t_en, t_es = transmutar_letra_motor_unificado(
-                            letra_base=letra_base_final,
-                            frec_target=frec_seleccionada,
+                        es_txt, en_txt = transmutar_letra_directa(
+                            letra_base=letra_base,
+                            frec_num=frec_seleccionada,
                             rima_tipo=tipo_rima_elegida,
-                            modo=modo_cod,
-                            tema_personalizado=tema_personalizado.strip(),
+                            modo=modo_codigo,
+                            tema=tema_para_enviar.strip(),
                             api_key=GROQ_API_KEY
                         )
-                        st.session_state.letra_trans_en = t_en
-                        st.session_state.letra_trans_es = t_es
+                        st.session_state.letra_trans_es = es_txt
+                        st.session_state.letra_trans_en = en_txt
                     except Exception as e:
-                        st.error(f"Error durante la transmutación: {e}")
+                        st.error(f"Error de conexión con Groq: {e}")
 
-    # Muestra los resultados transmutados inmediatamente
-    if st.session_state.letra_trans_en:
+    # CUADRO QUE SE ABRE INMEDIATAMENTE DEBAJO DEL BOTÓN CON LA NUEVA LETRA
+    if st.session_state.letra_trans_es:
         st.markdown("---")
-        st.markdown("""
+        st.markdown(f"""
         <div style="background-color: #064e3b; border-left: 6px solid #10b981; padding: 14px 20px; border-radius: 8px; margin: 15px 0;">
-            <h4 style="margin: 0; color: #a7f3d0;">🎉 ¡Alquimia completada con éxito! Letras organizadas en párrafos limpios</h4>
+            <h4 style="margin: 0; color: #a7f3d0;">🎉 ¡Letra compuesta con éxito! Lista para cantar sobre la pista</h4>
         </div>
         """, unsafe_allow_html=True)
 
-        tab_t_en, tab_t_es = st.tabs(["🇺🇸 Versión en Inglés (Clean)", "🇪🇸 Versión en Español"])
-        with tab_t_en:
-            boton_copiar(st.session_state.letra_trans_en, id_btn="cp_t_en")
-            st.text_area("Letra Transmutada en Inglés", value=st.session_state.letra_trans_en, height=320)
+        tab_t_es, tab_t_en = st.tabs(["🇪🇸 Letra en Español", "🇺🇸 Letra en Inglés"])
         with tab_t_es:
             boton_copiar(st.session_state.letra_trans_es, id_btn="cp_t_es")
-            st.text_area("Letra Transmutada en Español", value=st.session_state.letra_trans_es, height=320)
+            st.text_area("Español (Párrafos limpios)", value=st.session_state.letra_trans_es, height=350)
+        with tab_t_en:
+            boton_copiar(st.session_state.letra_trans_en, id_btn="cp_t_en")
+            st.text_area("Inglés (Clean Stanzas)", value=st.session_state.letra_trans_en, height=350)
 
 # --------------------------------------------------------------
 # PESTAÑA 3: SUBIR ARCHIVO LOCAL
