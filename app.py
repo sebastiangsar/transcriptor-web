@@ -8,24 +8,17 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
+# 1. Configuración de página
 st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
 
 MODELO_LLM = "llama-3.3-70b-versatile"
 
-@st.cache_resource(show_spinner=False)
-def init_environment():
-    try:
-        import static_ffmpeg
-        static_ffmpeg.add_paths()
-    except Exception:
-        pass
-
-init_environment()
-
+# 2. Cliente Groq en caché (Ultra-rápido)
 @st.cache_resource(show_spinner=False)
 def get_groq_client(api_key: str) -> Groq:
     return Groq(api_key=api_key)
 
+# 3. Estado de sesión
 claves_estado = [
     "texto_original", "texto_traducido", "guiones_generados", 
     "lead_magnets_generados"
@@ -34,7 +27,7 @@ for k in claves_estado:
     if k not in st.session_state:
         st.session_state[k] = None
 
-# Manejo seguro de secretos sin crasheos
+# Lectura segura de secretos
 GROQ_API_KEY = ""
 try:
     if "GROQ_API_KEY" in st.secrets:
@@ -48,6 +41,9 @@ def buscar_archivo_cookies():
             return n
     return None
 
+# ==============================================================
+# BARRA LATERAL
+# ==============================================================
 with st.sidebar:
     st.header("⚙️ Configuración")
     if not GROQ_API_KEY:
@@ -78,6 +74,7 @@ with st.sidebar:
 st.title("🎬 Transcriptor & Estrategia Viral")
 st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
 
+# Botón Copiar
 def boton_copiar(texto: str, id_btn="copiar"):
     if not texto:
         return
@@ -103,6 +100,9 @@ def boton_copiar(texto: str, id_btn="copiar"):
     """
     components.html(html_code, height=42)
 
+# ==============================================================
+# PROCESAMIENTO DE AUDIO DE ALTA VELOCIDAD
+# ==============================================================
 def descargar_tiktok_directo(enlace: str):
     try:
         resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=8)
@@ -263,6 +263,9 @@ ENTREGA OBLIGATORIA (Usa exactamente "=== DIVISION_LEADS ===" entre los guiones 
         return partes[0].strip(), partes[1].strip()
     return contenido.strip(), "No se pudo formatear por separado."
 
+# ==============================================================
+# VISTA PRINCIPAL
+# ==============================================================
 tab_link, tab_file = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
 with tab_link:
@@ -277,7 +280,7 @@ with tab_link:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("⚡ Extrayendo audio en alta velocidad..."):
+                with st.spinner("⚡ Descargando audio..."):
                     archivo_temporal = extraer_audio_rapido(url.strip())
                 with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
@@ -285,7 +288,7 @@ with tab_link:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz audible en el video.")
                 else:
-                    with st.spinner("✨ Limpiando y estructurando..."):
+                    with st.spinner("✨ Formateando texto..."):
                         orig, trad = procesar_texto_paralelo(texto_crudo, traducir_link, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
@@ -309,14 +312,14 @@ with tab_file:
             st.error("Ingresa tu Groq API Key en la barra lateral.")
         else:
             try:
-                with st.spinner("🎙️ Transcribiendo audio..."):
+                with st.spinner("🎙️ Transcribiendo desde memoria..."):
                     buffer_audio = archivo_subido.getvalue()
                     texto_crudo = transcribir_con_groq(buffer_audio, GROQ_API_KEY, nombre_archivo=archivo_subido.name)
 
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz.")
                 else:
-                    with st.spinner("✨ Estructurando..."):
+                    with st.spinner("✨ Formateando..."):
                         orig, trad = procesar_texto_paralelo(texto_crudo, traducir_f, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
