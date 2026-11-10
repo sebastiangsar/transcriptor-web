@@ -222,11 +222,21 @@ def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, api_key: 
 Analiza la siguiente TRANSCRIPCIÓN de referencia y aplica sus técnicas a la NUEVA IDEA del usuario.
 
 TUS TAREAS:
-1. Evalúa el PUNTAJE DE VIRALIDAD (de 0 a 100) del video original explicando la retención, sesgos y ganchos usados.
-2. Escribe 3 GUIONES COMPLETOS adaptados a la nueva idea, cada uno con un ÁNGULO DE HOOK DIFERENTE:
-   - Guion 1: Hook de Dolor Oculto / Advertencia de Error
-   - Guion 2: Hook de Curiosidad Extrema / Secreto Revelado
-   - Guion 3: Hook Contraintuitivo / Quiebre de Creencia / Shock
+1. Evalúa el PUNTAJE DE VIRALIDAD (de 0 a 100) explicando los mecanismos psicológicos y gatillos de dopamina.
+2. Escribe 3 GUIONES VIRALES COMPLETOS adaptados a la nueva idea, cada uno con un enfoque de Hook diferente.
+
+CADA GUION DEBE ENTREGARSE COMO UNA TABLA MARKDOWN EXACTA DE 3 COLUMNAS:
+| Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
+
+Filas obligatorias en cada tabla:
+- Hook (0-3s)
+- Loop de Curiosidad (3-7s)
+- Desarrollo (7-20s)
+- Recompensa (20-25s)
+- Cierre y CTA (25-30s)
+
+En "Dirección": explica qué debe hacer el usuario con su cuerpo, mirada, encuadre o elementos en pantalla.
+En "Qué dice": escribe el texto exacto, limpio y persuasivo que debe decir el usuario.
 
 TRANSCRIPCIÓN:
 \"{transcripcion}\"
@@ -235,31 +245,43 @@ NUEVA IDEA O PRODUCTO DEL USUARIO:
 \"{idea_usuario}\"
 
 FORMATO DE ENTREGA OBLIGATORIO:
-Usa estrictamente los delimitadores señalados para separar cada sección:
+Usa estrictamente los delimitadores señalados:
 
 <<<ANALISIS>>>
 ### 📊 Puntaje de Viralidad: [X]/100
-- **Por qué funcionó:** (Gatillos de dopamina y naturaleza humana detectados)
-- **Fórmula de Retención:** (Estructura de la curva de atención)
-- **Técnica del Cierre:** (Estrategia de conversión usada)
+- **Mecanismos Psicológicos:** (Sesgos, instintos primarios y gatillos detectados)
+- **Estructura de Retención:** (Curva de atención y apertura de bucles)
+- **Efectividad del Cierre:** (Estrategia de conversión)
 
 <<<GUION_1>>>
-#### 📌 Guion 1: Enfoque Dolor / Error Oculto
-- **Gancho [0-3s]:** [Acción visual] "Texto del Hook"
-- **Desarrollo [3-20s]:** [Indicación de cámara] "Texto del cuerpo"
-- **CTA [20-30s]:** "Llamada a la acción exacta"
+### 📌 Guion 1: Enfoque Dolor / Error Oculto
+| Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
+| :--- | :--- | :--- |
+| **Hook (0-3s)** | [Acción visual llamativa] | "Texto hablado" |
+| **Loop de Curiosidad (3-7s)** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo (7-20s)** | [Indicación de cámara/plano] | "Texto hablado" |
+| **Recompensa (20-25s)** | [Demostración/revelación] | "Texto hablado" |
+| **Cierre y CTA (25-30s)** | [Gesto final y llamada a acción] | "Texto hablado" |
 
 <<<GUION_2>>>
-#### 📌 Guion 2: Enfoque Secreto / Curiosidad Extrema
-- **Gancho [0-3s]:** [Acción visual] "Texto del Hook"
-- **Desarrollo [3-20s]:** [Indicación de cámara] "Texto del cuerpo"
-- **CTA [20-30s]:** "Llamada a la acción exacta"
+### 📌 Guion 2: Enfoque Curiosidad Extrema / Secreto Revelado
+| Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
+| :--- | :--- | :--- |
+| **Hook (0-3s)** | [Acción visual llamativa] | "Texto hablado" |
+| **Loop de Curiosidad (3-7s)** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo (7-20s)** | [Indicación de cámara/plano] | "Texto hablado" |
+| **Recompensa (20-25s)** | [Demostración/revelación] | "Texto hablado" |
+| **Cierre y CTA (25-30s)** | [Gesto final y llamada a acción] | "Texto hablado" |
 
 <<<GUION_3>>>
-#### 📌 Guion 3: Enfoque Contraintuitivo / Shock Directo
-- **Gancho [0-3s]:** [Acción visual] "Texto del Hook"
-- **Desarrollo [3-20s]:** [Indicación de cámara] "Texto del cuerpo"
-- **CTA [20-30s]:** "Llamada a la acción exacta"
+### 📌 Guion 3: Enfoque Contraintuitivo / Quiebre de Creencia
+| Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
+| :--- | :--- | :--- |
+| **Hook (0-3s)** | [Acción visual llamativa] | "Texto hablado" |
+| **Loop de Curiosidad (3-7s)** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo (7-20s)** | [Indicación de cámara/plano] | "Texto hablado" |
+| **Recompensa (20-25s)** | [Demostración/revelación] | "Texto hablado" |
+| **Cierre y CTA (25-30s)** | [Gesto final y llamada a acción] | "Texto hablado" |
 """
     res = client.chat.completions.create(
         model=modelo,
@@ -269,7 +291,6 @@ Usa estrictamente los delimitadores señalados para separar cada sección:
     
     texto_completo = res.choices[0].message.content
 
-    # División por expresiones regulares a prueba de fallos
     def extraer_seccion(etiqueta, siguiente_etiqueta=None):
         patron = rf"<<<{etiqueta}>>>(.*?)(?=<<<{siguiente_etiqueta}>>>|$)" if siguiente_etiqueta else rf"<<<{etiqueta}>>>(.*)"
         coincidencia = re.search(patron, texto_completo, re.DOTALL)
@@ -308,7 +329,7 @@ with tab_link:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz audible.")
                 else:
-                    with st.spinner("✨ Estructurando texto..."):
+                    with st.spinner("✨ Estructurando párrafos..."):
                         orig, trad = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
@@ -352,7 +373,7 @@ with tab_file:
                 st.error(f"Error: {e}")
 
 # ==============================================================
-# SALIDA
+# SALIDA: TRANSCRIPCIONES + INGENIERÍA INVERSA
 # ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
@@ -380,7 +401,7 @@ if st.session_state.texto_original:
             st.warning("Escribe primero tu idea, producto o servicio.")
         else:
             base_texto = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner("🧠 Analizando psicología viral y creando 3 guiones con hooks únicos..."):
+            with st.spinner("🧠 Analizando psicología viral y creando guiones de 3 columnas..."):
                 try:
                     an, g1, g2, g3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), GROQ_API_KEY)
                     st.session_state.res_analisis = an
@@ -394,29 +415,30 @@ if st.session_state.texto_original:
     if st.session_state.res_analisis:
         st.markdown("---")
         
-        # 1. Análisis y Puntaje de Viralidad
+        # 1. Análisis Psicológico y Puntaje
         st.subheader("🧠 Análisis Psicológico & Puntaje de Viralidad")
         boton_copiar(st.session_state.res_analisis, id_btn="cp_an")
         st.info(st.session_state.res_analisis)
 
-        # 2. Los 3 Guiones en 3 Columnas
-        st.markdown("### 🎬 3 Guiones Virales (1 Enfoque de Hook por Columna)")
-        col1, col2, col3 = st.columns(3)
+        # 2. Los 3 Guiones en 3 Pestañas con sus Tablas de 3 Columnas
+        st.markdown("### 🎬 3 Guiones Virales Estructurados")
+        tab_g1, tab_g2, tab_g3 = st.tabs([
+            "📌 Guion 1: Hook de Dolor", 
+            "📌 Guion 2: Hook de Curiosidad", 
+            "📌 Guion 3: Hook Contraintuitivo"
+        ])
 
-        with col1:
-            st.markdown("##### 📌 Opción 1: Hook de Dolor")
+        with tab_g1:
             if st.session_state.res_g1:
                 boton_copiar(st.session_state.res_g1, id_btn="cp_g1")
-                st.success(st.session_state.res_g1)
+                st.markdown(st.session_state.res_g1)
 
-        with col2:
-            st.markdown("##### 📌 Opción 2: Hook de Curiosidad")
+        with tab_g2:
             if st.session_state.res_g2:
                 boton_copiar(st.session_state.res_g2, id_btn="cp_g2")
-                st.warning(st.session_state.res_g2)
+                st.markdown(st.session_state.res_g2)
 
-        with col3:
-            st.markdown("##### 📌 Opción 3: Hook Contraintuitivo")
+        with tab_g3:
             if st.session_state.res_g3:
                 boton_copiar(st.session_state.res_g3, id_btn="cp_g3")
-                st.error(st.session_state.res_g3)
+                st.markdown(st.session_state.res_g3)
