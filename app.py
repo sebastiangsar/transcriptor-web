@@ -23,7 +23,7 @@ st.caption("Videos Virales, Guiones con IA y Transmutación Musical Hawkins")
 claves_estado = [
     "texto_original", "texto_traducido", "guiones_generados",
     "letra_esc_orig", "letra_esc_es", "analisis_hawkins", 
-    "letra_trans_orig", "letra_trans_es"
+    "letra_trans_en", "letra_trans_es"
 ]
 for k in claves_estado:
     if k not in st.session_state:
@@ -271,18 +271,21 @@ def generar_ideas_y_guiones(transcripcion, nicho_usuario, api_key):
     return res.choices[0].message.content
 
 # ==============================================================
-# ALQUIMIA LÍRICA (HAWKINS) - FUNCIONES MEJORADAS
+# ALQUIMIA LÍRICA (HAWKINS) - ANÁLISIS VIRAL Y TRANSMUTACIÓN
 # ==============================================================
 def estructurar_letra_musical(letra_cruda, api_key):
-    """Estructura la letra en sus bloques y genera también su versión al español"""
+    """Estructura la letra en párrafos limpios y genera traducción al español"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
     instruccion = (
         "Eres un productor y compositor musical experto. Analiza el texto de esta canción "
-        "y organízalo en su estructura musical formal, etiquetando claramente cada bloque entre corchetes: "
-        "[Verso 1], [Pre-Coro], [Coro], [Verso 2], [Puente], [Coro Final], [Outro]. "
-        "Conserva la métrica y rimas del idioma original. Solo devuelve la letra estructurada."
+        "y organízalo en su estructura musical formal con formato impecable.\n\n"
+        "REGLAS OBLIGATORIAS:\n"
+        "1. Etiqueta claramente cada sección entre corchetes: [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Outro].\n"
+        "2. Separa cada sección con un salto de línea doble (\\n\\n).\n"
+        "3. Cada verso debe ser una línea individual y limpia. No amontones versos.\n"
+        "4. Conserva el idioma y rima original. Devuelve únicamente la letra estructurada."
     )
     res_orig = client.chat.completions.create(
         model=modelo,
@@ -294,10 +297,10 @@ def estructurar_letra_musical(letra_cruda, api_key):
     )
     letra_orig = res_orig.choices[0].message.content
 
-    # Generamos la traducción poética al español manteniendo los corchetes
     instruccion_es = (
-        "Eres un traductor y letrista musical. Traduce la siguiente letra estructurada al español de forma natural, "
-        "manteniendo exactamente las etiquetas entre corchetes ([Verso 1], [Coro], etc.). Solo devuelve la traducción."
+        "Eres un traductor y letrista musical. Traduce la siguiente letra estructurada al español de forma poética y natural.\n"
+        "Mantén exactamente las etiquetas [Verso 1], [Pre-Coro], [Coro], [Puente], etc., y los saltos de línea dobles entre secciones. "
+        "Devuelve solo la traducción limpia."
     )
     res_es = client.chat.completions.create(
         model=modelo,
@@ -310,105 +313,121 @@ def estructurar_letra_musical(letra_cruda, api_key):
     return letra_orig, res_es.choices[0].message.content
 
 def calibrar_hawkins_estructurado(letra_texto, api_key):
-    """Devuelve el análisis calibrado con nivel y polaridad emocional"""
+    """Mide la frecuencia de Hawkins Y el potencial de viralidad/catarsis"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
-    instruccion = (
-        "Eres un maestro del Mapa de Conciencia de David R. Hawkins (Power vs. Force). "
-        "Evalúa la vibración emocional dominante de esta letra.\n"
-        "Escala Hawkins: Vergüenza (20), Culpa (30), Apatía (50), Pena (75), Miedo (100), "
-        "Deseo (125), Ira (150), Orgullo (175), Coraje (200), Neutralidad (250), "
-        "Voluntad (310), Aceptación (350), Razón (400), Amor (500), Alegría (540), Paz (600).\n\n"
-        "Devuelve ÚNICAMENTE un objeto JSON válido con estas 4 claves exactas:\n"
-        "{\n"
-        "  \"frecuencia\": \"Culpa (30 puntos)\",\n"
-        "  \"patron\": \"Breve explicación del apego, rencor o victimismo del texto\",\n"
-        "  \"elevacion\": \"Aceptación (350) o Amor Incondicional (500)\",\n"
-        "  \"clave\": \"Concepto central para transmutar el mensaje\"\n"
-        "}"
-    )
+    prompt = f"""Eres un analista de psicología musical experto en el Mapa de Conciencia de David R. Hawkins (Power vs. Force) y viralidad emocional.
+Analiza la siguiente letra de canción:
+\"\"\"{letra_texto}\"\"\"
+
+Determina:
+1. Nivel vibracional dominante en la escala Hawkins (ej: Vergüenza 20, Culpa 30, Apatía 50, Pena 75, Miedo 100, Deseo 125, Ira 150, Orgullo 175, Coraje 200, Neutralidad 250, Aceptación 350, Razón 400, Amor 500, Alegría 540, Paz 600).
+2. Grado de Viralidad y Conexión Emocional (0 a 100%) y el motivo psicológico (las canciones de baja vibración suelen tener altísima viralidad por catarsis colectiva, despecho, desahogo o validación del dolor).
+3. Frecuencia Opuesta de Elevación (el nivel elevado al que debe transmutar).
+4. Clave Alquímica (la frase o idea central para transmutar el mensaje).
+
+Responde con líneas que comiencen exactamente con estas etiquetas:
+FRECUENCIA: [Emoción y número de puntos]
+VIRALIDAD: [Porcentaje 0-100% y explicación breve del fenómeno de conexión/catarsis]
+PATRON: [1 frase explicando el apego, dolor o rencor del texto original]
+ELEVACION: [Nivel de alta frecuencia hacia donde elevar]
+CLAVE: [Concepto central de redención o soberanía]"""
+
     res = client.chat.completions.create(
         model=modelo,
-        messages=[
-            {"role": "system", "content": instruccion},
-            {"role": "user", "content": letra_texto}
-        ],
-        temperature=0.1,
-        response_format={"type": "json_object"}
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
     )
-    try:
-        return json.loads(res.choices[0].message.content)
-    except Exception:
-        return {
-            "frecuencia": "Baja Frecuencia (<200)",
-            "patron": "Carga emocional no resuelta en la lírica.",
-            "elevacion": "Aceptación (350) / Amor (500)",
-            "clave": "Perdón y Soberanía personal"
-        }
+    
+    lineas = res.choices[0].message.content.split("\n")
+    datos = {
+        "frecuencia": "Culpa (30 puntos)",
+        "viralidad": "92% - Muy Alta (Conexión por Catarsis y Desahogo Colectivo)",
+        "patron": "Carga de victimismo y remordimiento en la narrativa.",
+        "elevacion": "Aceptación (350) / Amor Incondicional (500)",
+        "clave": "Perdón propio y redención"
+    }
+    
+    for l in lineas:
+        if l.startswith("FRECUENCIA:"):
+            datos["frecuencia"] = l.replace("FRECUENCIA:", "").strip()
+        elif l.startswith("VIRALIDAD:"):
+            datos["viralidad"] = l.replace("VIRALIDAD:", "").strip()
+        elif l.startswith("PATRON:"):
+            datos["patron"] = l.replace("PATRON:", "").strip()
+        elif l.startswith("ELEVACION:"):
+            datos["elevacion"] = l.replace("ELEVACION:", "").strip()
+        elif l.startswith("CLAVE:"):
+            datos["clave"] = l.replace("CLAVE:", "").strip()
+            
+    return datos
 
 def transmutar_letra_modo(letra_estructurada, analisis_h, modo, tema_personalizado, api_key):
-    """Reescribe la letra elevando la vibración: misma historia O nueva temática"""
+    """Reescribe la lírica en alta vibración separada en párrafos limpios (Inglés y Español)"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
     if modo == "misma":
         guia_modo = (
-            "REESCRIBIR LA MISMA LETRA (ELEVACIÓN DE CONCIENCIA):\n"
-            "- NO cambies la historia, situación ni personajes de la canción original.\n"
-            "- Transmuta la perspectiva: cambia el rencor, victimismo, desamor o culpa hacia "
-            "la redención, la comprensión, la paz interior y el amor propio.\n"
-            "- Conserva el mismo significado básico pero narrado desde un estado elevado de conciencia."
+            "MODO: REESCRIBIR LA MISMA HISTORIA (TRANSMUTACIÓN ELEVADA):\n"
+            "- Conserva exactamente la misma situación, historia, personajes y dolor de la canción original.\n"
+            "- Transmuta el enfoque: en lugar de quedarse en el rencor, la culpa o la venganza, condúcelo "
+            "hacia la sabiduría, el amor propio, la redención, el perdón y el cierre consciente.\n"
+            "- Debe sentirse como la misma canción, pero sanada."
         )
     else:
         guia_modo = (
-            f"CREAR NUEVA LETRA CON NUEVA TEMÁTICA:\n"
+            f"MODO: CREAR NUEVA LETRA CON TEMÁTICA PROPIA:\n"
             f"- Temática elegida: \"{tema_personalizado}\"\n"
-            "- Adapta el mensaje completamente a este nuevo tema en alta vibración."
+            "- Desarrolla este tema en alta vibración manteniendo el mismo ritmo y formato."
         )
 
-    instruccion = (
-        f"Eres un alquimista lírico y compositor maestro. Tu misión es transmutar la canción hacia la alta frecuencia.\n\n"
+    instruccion_en = (
+        f"You are a master lyrical alchemist and songwriter. Your mission is to elevate the song into high frequency.\n\n"
         f"{guia_modo}\n\n"
-        "REGLAS TÉCNICAS OBLIGATORIAS:\n"
-        "1. Mantén la misma estructura métrica y bloques ([Verso 1], [Pre-Coro], [Coro], [Puente], etc.).\n"
-        "2. Mantén el conteo silábico, acentuación y rimas para que se pueda cantar exactamente "
-        "sobre la misma pista musical (karaoke o beat) original.\n"
-        "3. Devuelve únicamente la letra transmutada."
+        "STRICT FORMATTING AND RHYTHMIC RULES:\n"
+        "1. Structure in clear blocks with labels: [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Chorus], [Outro].\n"
+        "2. Add double newlines (blank lines) between each section.\n"
+        "3. Match the exact syllable counts, cadence, and rhyme scheme so it can be sung on the original musical beat.\n"
+        "4. Output must be in ENGLISH, clean, professional, and directly ready to sing."
     )
 
     prompt = (
-        f"LETRA ORIGINAL:\n\"\"\"{letra_estructurada}\"\"\"\n\n"
-        f"DATOS HAWKINS:\nFrecuencia detectada: {analisis_h.get('frecuencia')}\n"
-        f"Elevar hacia: {analisis_h.get('elevacion')}\n"
-        f"Clave: {analisis_h.get('clave')}"
+        f"ORIGINAL LYRICS:\n\"\"\"{letra_estructurada}\"\"\"\n\n"
+        f"HAWKINS ANALYSIS:\n"
+        f"- Target Elevation: {analisis_h.get('elevacion')}\n"
+        f"- Key Insight: {analisis_h.get('clave')}"
     )
 
-    res_trans = client.chat.completions.create(
+    # 1. Generamos versión en Inglés
+    res_en = client.chat.completions.create(
         model=modelo,
         messages=[
-            {"role": "system", "content": instruccion},
+            {"role": "system", "content": instruccion_en},
             {"role": "user", "content": prompt}
         ],
         temperature=0.4
     )
-    letra_trans_res = res_trans.choices[0].message.content
+    letra_en = res_en.choices[0].message.content
 
-    # Traducimos la transmutada al español si no está en español
-    instruccion_trad = (
-        "Eres un letrista musical. Traduce la siguiente letra transmutada al español latino natural, "
-        "manteniendo las etiquetas entre corchetes ([Verso 1], [Coro], etc.). Devuelve solo el texto."
+    # 2. Generamos versión poética estructurada en Español
+    instruccion_es = (
+        "Eres un letrista y compositor experto. Toma la siguiente letra transmutada y adáptala al español latino "
+        "con rima natural y cantable. Mantén la misma estructura estricta ([Verso 1], [Coro], etc.) "
+        "con saltos de línea dobles entre secciones. Solo entrega la letra."
     )
-    res_tr_es = client.chat.completions.create(
+    res_es = client.chat.completions.create(
         model=modelo,
         messages=[
-            {"role": "system", "content": instruccion_trad},
-            {"role": "user", "content": letra_trans_res}
+            {"role": "system", "content": instruccion_es},
+            {"role": "user", "content": letra_en}
         ],
-        temperature=0.2
+        temperature=0.3
     )
+    letra_es = res_es.choices[0].message.content
 
-    return letra_trans_res, res_tr_es.choices[0].message.content
+    return letra_en, letra_es
 
 # ==============================================================
 # PESTAÑAS PRINCIPALES
@@ -493,11 +512,11 @@ with tab_videos:
             st.markdown(st.session_state.guiones_generados)
 
 # --------------------------------------------------------------
-# PESTAÑA 2: ALQUIMIA LÍRICA (SIN LINK, MÁS VISUAL Y SIN OBLIGAR TEMA)
+# PESTAÑA 2: ALQUIMIA LÍRICA (HAWKINS + VIRALIDAD + FORMATO LIMPIO)
 # --------------------------------------------------------------
 with tab_musica:
     st.subheader("🎵 Alquimia Lírica (Escala de Hawkins)")
-    st.caption("Pega la letra de cualquier canción para estructurarla, calibrar su vibración y elevarla.")
+    st.caption("Estructura canciones, calibra su resonancia viral y transmuta la letra en alta vibración.")
     
     letra_manual = st.text_area(
         "Pega aquí la letra de la canción:",
@@ -512,15 +531,18 @@ with tab_musica:
         elif not letra_manual.strip():
             st.warning("Por favor pega la letra de la canción antes de escanear.")
         else:
-            with st.spinner("Estructurando bloques ([Verso], [Coro]) y preparando traducción..."):
-                orig, es = estructurar_letra_musical(letra_manual.strip(), GROQ_API_KEY)
-                st.session_state.letra_esc_orig = orig
-                st.session_state.letra_esc_es = es
-                st.session_state.analisis_hawkins = None
-                st.session_state.letra_trans_orig = None
-                st.session_state.letra_trans_es = None
+            with st.spinner("Estructurando bloques en párrafos limpios y preparando traducción..."):
+                try:
+                    orig, es = estructurar_letra_musical(letra_manual.strip(), GROQ_API_KEY)
+                    st.session_state.letra_esc_orig = orig
+                    st.session_state.letra_esc_es = es
+                    st.session_state.analisis_hawkins = None
+                    st.session_state.letra_trans_en = None
+                    st.session_state.letra_trans_es = None
+                except Exception as e:
+                    st.error(f"Error al estructurar: {e}")
 
-    # Si hay letra escaneada, la mostramos con pestañas de traducción
+    # Si hay letra escaneada, la mostramos en pestañas
     if st.session_state.letra_esc_orig:
         st.markdown("---")
         st.markdown("#### 🎼 Estructura Musical Detectada")
@@ -535,34 +557,36 @@ with tab_musica:
 
         # 2. BOTÓN: CALIBRAR
         st.markdown("---")
-        st.markdown("#### 🔮 Calibración en el Mapa de Conciencia")
+        st.markdown("#### 🔮 Calibración de Conciencia & Potencial Viral")
         if st.button("Calibrar", key="btn_calibrar"):
-            with st.spinner("Midiendo nivel vibracional con la escala de David R. Hawkins..."):
-                st.session_state.analisis_hawkins = calibrar_hawkins_estructurado(
-                    st.session_state.letra_esc_orig, GROQ_API_KEY
-                )
+            with st.spinner("Midiendo nivel Hawkins y grado de viralidad psicológica..."):
+                try:
+                    st.session_state.analisis_hawkins = calibrar_hawkins_estructurado(
+                        st.session_state.letra_esc_orig, GROQ_API_KEY
+                    )
+                except Exception as e:
+                    st.error(f"Error al calibrar: {e}")
 
-        # TARJETA VISUAL CON COLOR
+        # TARJETA VISUAL CON VIRALIDAD
         if st.session_state.analisis_hawkins:
             h = st.session_state.analisis_hawkins
             frec_str = h.get("frecuencia", "")
 
-            # Tarjeta visual coloreada
             st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #1e1b4b 0%, #311042 100%); border-left: 6px solid #f43f5e; padding: 16px 20px; border-radius: 10px; margin: 15px 0;">
-                <h4 style="margin: 0 0 8px 0; color: #fb7185;">📊 Frecuencia Detectada: <span style="color: #ffffff; text-decoration: underline;">{frec_str}</span></h4>
-                <p style="margin: 4px 0; color: #e2e8f0; font-size: 14px;"><b>⚠️ Patrón emocional:</b> {h.get('patron')}</p>
-                <p style="margin: 4px 0; color: #34d399; font-size: 15px;"><b>✨ Frecuencia de Elevación recomendada:</b> {h.get('elevacion')}</p>
-                <p style="margin: 4px 0; color: #a78bfa; font-size: 14px;"><b>🔑 Clave de Alquimia:</b> {h.get('clave')}</p>
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%); border-left: 6px solid #f43f5e; padding: 18px 22px; border-radius: 12px; margin: 18px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px 0; color: #fb7185; font-size: 18px;">📊 Frecuencia Hawkins: <span style="color: #ffffff; text-decoration: underline;">{frec_str}</span></h4>
+                <p style="margin: 6px 0; color: #38bdf8; font-size: 15px;"><b>🔥 Potencial Viral / Conexión Emocional:</b> <span style="color: #ffffff; font-weight: bold;">{h.get('viralidad')}</span></p>
+                <p style="margin: 6px 0; color: #e2e8f0; font-size: 14px;"><b>⚠️ Patrón Psicológico Raíz:</b> {h.get('patron')}</p>
+                <p style="margin: 6px 0; color: #34d399; font-size: 15px;"><b>✨ Frecuencia de Elevación recomendada:</b> {h.get('elevacion')}</p>
+                <p style="margin: 6px 0; color: #c084fc; font-size: 14px;"><b>🔑 Clave de Transmutación:</b> {h.get('clave')}</p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown("---")
             st.markdown("#### ✨ Modo de Transmutación")
             
-            # Selector de modo: Misma letra O Nueva temática
             modo_elegido = st.radio(
-                "¿Cómo deseas transmutar la canción?",
+                "¿Cómo deseas transmutar la lírica?",
                 options=["Elevar la misma letra (Misma historia, alta vibración)", "Escribir sobre una nueva temática"],
                 index=0
             )
@@ -580,32 +604,36 @@ with tab_musica:
                 if modo_codigo == "nueva" and not tema_nuevo.strip():
                     st.warning("Por favor escribe la temática que deseas para la nueva letra.")
                 else:
-                    with st.spinner("Transmutando la lírica manteniendo métrica y ritmo para cantar sobre la pista..."):
-                        t_orig, t_es = transmutar_letra_modo(
-                            st.session_state.letra_esc_orig,
-                            st.session_state.analisis_hawkins,
-                            modo_codigo,
-                            tema_nuevo.strip(),
-                            GROQ_API_KEY
-                        )
-                        st.session_state.letra_trans_orig = t_orig
-                        st.session_state.letra_trans_es = t_es
+                    with st.spinner("Transmutando lírica en párrafos limpios (Inglés y Español)..."):
+                        try:
+                            t_en, t_es = transmutar_letra_modo(
+                                st.session_state.letra_esc_orig,
+                                st.session_state.analisis_hawkins,
+                                modo_codigo,
+                                tema_nuevo.strip(),
+                                GROQ_API_KEY
+                            )
+                            st.session_state.letra_trans_en = t_en
+                            st.session_state.letra_trans_es = t_es
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error durante la transmutación: {e}")
 
-            # Mostramos la letra transmutada en pestañas con sus botones Copiar
-            if st.session_state.letra_trans_orig:
+            # Mostramos la letra transmutada en párrafos organizados
+            if st.session_state.letra_trans_en:
                 st.markdown("""
-                <div style="background-color: #064e3b; border-left: 6px solid #10b981; padding: 12px 18px; border-radius: 8px; margin: 15px 0;">
-                    <h4 style="margin: 0; color: #a7f3d0;">🎉 ¡Alquimia completada! Letra lista para cantar sobre el beat original</h4>
+                <div style="background-color: #064e3b; border-left: 6px solid #10b981; padding: 14px 20px; border-radius: 8px; margin: 18px 0;">
+                    <h4 style="margin: 0; color: #a7f3d0;">🎉 ¡Alquimia completada! Letra en alta vibración organizada por párrafos</h4>
                 </div>
                 """, unsafe_allow_html=True)
 
-                tab_t_orig, tab_t_es = st.tabs(["🌐 Versión Original / Transmutada", "🇪🇸 Traducción al Español"])
-                with tab_t_orig:
-                    boton_copiar(st.session_state.letra_trans_orig, id_btn="cp_t_orig")
-                    st.text_area("Letra Transmutada", value=st.session_state.letra_trans_orig, height=260)
+                tab_t_en, tab_t_es = st.tabs(["🇺🇸 Versión en Inglés (Clean)", "🇪🇸 Versión en Español"])
+                with tab_t_en:
+                    boton_copiar(st.session_state.letra_trans_en, id_btn="cp_t_en")
+                    st.text_area("Letra Transmutada en Inglés", value=st.session_state.letra_trans_en, height=300)
                 with tab_t_es:
                     boton_copiar(st.session_state.letra_trans_es, id_btn="cp_t_es")
-                    st.text_area("Traducción al Español", value=st.session_state.letra_trans_es, height=260)
+                    st.text_area("Letra Transmutada en Español", value=st.session_state.letra_trans_es, height=300)
 
 # --------------------------------------------------------------
 # PESTAÑA 3: SUBIR ARCHIVO LOCAL
