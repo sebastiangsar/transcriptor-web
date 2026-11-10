@@ -84,7 +84,7 @@ with st.sidebar:
         st.button("Solicitar", key="lm3")
 
 def boton_copiar(texto, id_btn="copiar"):
-    """Boton de 1 sola palabra para copiar al portapapeles"""
+    """Botón de 1 sola palabra para copiar al portapapeles"""
     texto_json = json.dumps(texto)
     html_code = f"""
     <button id="{id_btn}" onclick="copiar_{id_btn}()" style="
@@ -110,7 +110,7 @@ def boton_copiar(texto, id_btn="copiar"):
             msg.style.display = 'inline';
             setTimeout(() => {{ msg.style.display = 'none'; }}, 2500);
         }}).catch(err => {{
-            alert('Error: ' + err);
+            alert('Error al copiar: ' + err);
         }});
     }}
     </script>
@@ -135,19 +135,53 @@ def descargar_tiktok_directo(enlace):
         pass
     return None
 
+def descargar_con_cobalt_fallback(enlace):
+    """Puente alternativo si YouTube o Instagram bloquean el servidor de la nube"""
+    instancias = ["https://api.cobalt.tools", "https://cobalt-api.kwiatekm.pl"]
+    for api in instancias:
+        try:
+            r = requests.post(
+                api,
+                json={"url": enlace, "downloadMode": "audio"},
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=15
+            )
+            if r.status_code == 200:
+                audio_url = r.json().get("url")
+                if audio_url:
+                    res_media = requests.get(audio_url, timeout=40)
+                    if res_media.status_code == 200 and len(res_media.content) > 10000:
+                        ruta = "temp_audio.mp3"
+                        with open(ruta, "wb") as f:
+                            f.write(res_media.content)
+                        return ruta
+        except Exception:
+            continue
+    return None
+
 def extraer_audio(enlace):
+    """Descarga de audio ultra optimizada a 32kbps mono y con bypass de cliente móvil"""
+    # 1. Caso TikTok
     if "tiktok.com" in enlace:
         tk = descargar_tiktok_directo(enlace)
         if tk:
             return tk
 
+    # 2. Configuración optimizada de yt-dlp para la nube
     opciones = {
-        'format': 'm4a/bestaudio/best',
+        'format': 'ba/b',
         'outtmpl': 'temp_audio.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
+            'preferredquality': '32',  # Compresión optimizada para Whisper
         }],
+        # Bypass clave: simular clientes móviles para evitar bloqueos en AWS
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web_creator']
+            }
+        },
         'quiet': True,
         'no_warnings': True,
     }
@@ -156,12 +190,19 @@ def extraer_audio(enlace):
     if cookies_file:
         opciones['cookiefile'] = cookies_file
 
-    with yt_dlp.YoutubeDL(opciones) as ydl:
-        ydl.download([enlace])
-
-    return "temp_audio.mp3"
+    try:
+        with yt_dlp.YoutubeDL(opciones) as ydl:
+            ydl.download([enlace])
+        return "temp_audio.mp3"
+    except Exception:
+        # Si yt-dlp es bloqueado por la nube, usamos el respaldo de Cobalt
+        audio_cobalt = descargar_con_cobalt_fallback(enlace)
+        if audio_cobalt:
+            return audio_cobalt
+        raise Exception("El servidor no pudo descargar este video. Intenta subirlo directamente en la pestaña '📁 Subir Archivo'.")
 
 def transcribir_con_groq(ruta_archivo, api_key):
+    """Envío optimizado a Groq Whisper"""
     client = Groq(api_key=api_key)
     with open(ruta_archivo, "rb") as file:
         transcription = client.audio.transcriptions.create(
@@ -264,11 +305,7 @@ def generar_ideas_y_guiones(transcripcion, nicho_usuario, api_key):
     )
     return res.choices[0].message.content
 
-# ==============================================================
-# FUNCIONES: ALQUIMIA LÍRICA (MAPA DE HAWKINS)
-# ==============================================================
 def estructurar_letra_musical(letra_cruda, api_key):
-    """Detecta y etiqueta la estructura musical estricta"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
@@ -289,14 +326,13 @@ def estructurar_letra_musical(letra_cruda, api_key):
     return res.choices[0].message.content
 
 def calibrar_hawkins(letra_estructurada, api_key):
-    """Mide la frecuencia vibracional según el Mapa de Conciencia de David R. Hawkins"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
     instruccion = (
         "Eres un experto en el Mapa de Conciencia de David R. Hawkins (Power vs. Force). "
         "Analiza la letra musical y determina su calibración vibracional dominante:\n"
-        "Escala de referencia: Vergüenza (20), Culpa (30), Apatía (50), Pena (75), Miedo (100), "
+        "Escala: Vergüenza (20), Culpa (30), Apatía (50), Pena (75), Miedo (100), "
         "Deseo/Apego (125), Ira (150), Orgullo (175), Coraje (200), Neutralidad (250), "
         "Voluntad (310), Aceptación (350), Razón (400), Amor (500), Alegría (540), Paz (600).\n\n"
         "Devuelve exactamente esta ficha concisa en Markdown:\n"
@@ -316,7 +352,6 @@ def calibrar_hawkins(letra_estructurada, api_key):
     return res.choices[0].message.content
 
 def transmutar_letra(letra_estructurada, analisis_h, tema_nuevo, api_key):
-    """Reescribe la canción en alta vibración manteniendo métrica y rima para cantar sobre la pista"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_texto_activo(client)
     
@@ -346,7 +381,7 @@ def transmutar_letra(letra_estructurada, analisis_h, tema_nuevo, api_key):
     return res.choices[0].message.content
 
 # ==============================================================
-# PESTAÑAS PRINCIPALES DE LA APLICACIÓN
+# PESTAÑAS PRINCIPALES
 # ==============================================================
 tab_videos, tab_musica, tab_archivo = st.tabs([
     "🎬 Videos & Guiones",
@@ -355,7 +390,7 @@ tab_videos, tab_musica, tab_archivo = st.tabs([
 ])
 
 # --------------------------------------------------------------
-# PESTAÑA 1: VIDEOS Y GENERADOR DE GUIONES
+# PESTAÑA 1: VIDEOS Y GUIONES
 # --------------------------------------------------------------
 with tab_videos:
     url = st.text_input("Enlace de YouTube, TikTok o Instagram:")
@@ -369,13 +404,13 @@ with tab_videos:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("Descargando audio..."):
+                with st.spinner("1/2 Descargando audio ultra comprimido..."):
                     archivo_temporal = extraer_audio(url.strip())
-                with st.spinner("Transcribiendo con IA (Whisper)..."):
+                with st.spinner("2/2 Transcribiendo en alta velocidad con Groq Whisper..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
 
                 if not texto_crudo:
-                    st.warning("No se detectó voz.")
+                    st.warning("No se detectó voz en el contenido.")
                 else:
                     st.session_state.texto_original = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=False)
                     if traducir_link:
@@ -384,7 +419,7 @@ with tab_videos:
                         st.session_state.texto_traducido = None
                     st.session_state.guiones_generados = None
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"{e}")
             finally:
                 if archivo_temporal and os.path.exists(archivo_temporal):
                     try:
@@ -437,7 +472,6 @@ with tab_musica:
     musica_url = st.text_input("Enlace de YouTube de la canción (o pega la letra abajo):")
     letra_manual = st.text_area("O pega la letra aquí directamente:", height=100)
 
-    # 1. BOTÓN: ESCANEAR
     if st.button("Escanear", type="primary", key="btn_escanear"):
         if not GROQ_API_KEY.strip():
             st.error("Ingresa tu Groq API Key en la barra lateral.")
@@ -450,12 +484,12 @@ with tab_musica:
             else:
                 archivo_temp = None
                 try:
-                    with st.spinner("Descargando canción de YouTube..."):
+                    with st.spinner("Descargando canción..."):
                         archivo_temp = extraer_audio(musica_url.strip())
                     with st.spinner("Extrayendo letra con Whisper..."):
                         letra_base = transcribir_con_groq(archivo_temp, GROQ_API_KEY)
                 except Exception as e:
-                    st.error(f"Error descargando audio: {e}")
+                    st.error(f"{e}")
                 finally:
                     if archivo_temp and os.path.exists(archivo_temp):
                         try:
@@ -469,13 +503,11 @@ with tab_musica:
                     st.session_state.analisis_hawkins = None
                     st.session_state.letra_transmutada = None
 
-    # Muestra la letra escaneada
     if st.session_state.letra_escaneada:
         st.markdown("#### 🎼 Estructura Musical Detectada")
         boton_copiar(st.session_state.letra_escaneada, id_btn="cp_letra_esc")
         st.text_area("Estructura Musical", value=st.session_state.letra_escaneada, height=220)
 
-        # 2. BOTÓN: CALIBRAR
         st.markdown("---")
         st.markdown("#### 🔮 Calibración en la Escala de Hawkins")
         if st.button("Calibrar", key="btn_calibrar"):
@@ -485,7 +517,6 @@ with tab_musica:
         if st.session_state.analisis_hawkins:
             st.info(st.session_state.analisis_hawkins)
             
-            # 3. BOTÓN: TRANSMUTAR
             st.markdown("---")
             st.markdown("#### ✨ Transmutación a Frecuencia Alta")
             tema_transmutar = st.text_input(
@@ -507,7 +538,6 @@ with tab_musica:
 
             if st.session_state.letra_transmutada:
                 st.success("¡Letra transmutada lista para cantar sobre el beat original!")
-                # 4. BOTÓN: COPIAR
                 boton_copiar(st.session_state.letra_transmutada, id_btn="cp_transmutada")
                 st.text_area("Nueva Letra Elevada", value=st.session_state.letra_transmutada, height=260)
 
