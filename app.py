@@ -7,8 +7,8 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-# 1. Configuración de página
-st.set_page_config(page_title="Transcriptor & Creador de Guiones", page_icon="🎬", layout="centered")
+# 1. Configuración de página al inicio absoluto
+st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
 
 # Activa FFmpeg: en la nube usa packages.txt; en local usa static_ffmpeg
 try:
@@ -17,11 +17,15 @@ try:
 except Exception:
     pass
 
-st.title("🎬 Transcriptor & Creador de Guiones Virales")
-st.caption("YouTube, TikTok e Instagram — Whisper y Llama en Groq")
+st.title("🎬 Transcriptor & Estrategia Viral")
+st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
 
-# Memoria de sesión
-for k in ["texto_original", "texto_traducido", "guiones_generados", "groq_chat_model"]:
+# Memoria de sesión limpia y persistente
+claves_estado = [
+    "texto_original", "texto_traducido", "guiones_generados", 
+    "lead_magnets_generados", "groq_chat_model"
+]
+for k in claves_estado:
     if k not in st.session_state:
         st.session_state[k] = None
 
@@ -72,7 +76,7 @@ def obtener_modelo_activo(client):
     return modelo_detectado
 
 # ==============================================================
-# BARRA LATERAL: CONFIGURACIÓN + LEAD MAGNETS
+# BARRA LATERAL: CONFIGURACIÓN
 # ==============================================================
 with st.sidebar:
     st.header("⚙️ Configuración")
@@ -96,17 +100,12 @@ with st.sidebar:
         st.warning("Sin cookies.")
 
     st.markdown("---")
-    st.header("🎁 Recursos Gratuitos")
-    with st.expander("⭐ Nivel 1: Alto Valor"):
-        st.markdown("**La Bóveda de las 50 Fórmulas Virales**")
-        st.button("Descargar", key="lm1")
-    with st.expander("🎯 Nivel 2: Específico"):
-        st.markdown("**Kit de 30 Ganchos + Plantilla**")
-        st.button("Obtener", key="lm2")
-    with st.expander("👑 Nivel 3: Personalizado"):
-        st.markdown("**Auditoría 1 a 1 de tu Cuenta**")
-        st.text_input("Tu @usuario:", placeholder="@tucuenta")
-        st.button("Solicitar", key="lm3")
+    st.info("💡 **Tip:** Los 3 Lead Magnets ahora se generan automáticamente dentro de la pestaña dedicada según tu producto o servicio.")
+    
+    if st.button("Limpiar datos"):
+        for k in claves_estado:
+            st.session_state[k] = None
+        st.rerun()
 
 def boton_copiar(texto, id_btn="copiar"):
     if not texto:
@@ -224,49 +223,86 @@ def formatear_y_traducir(texto, api_key, traducir=True):
     except Exception:
         return texto
 
-def generar_ideas_y_guiones(transcripcion, nicho_usuario, api_key):
+def generar_guiones_y_leadmagnets(transcripcion, nicho_usuario, api_key):
+    """Genera simultáneamente la radiografía, 3 guiones y los 3 Lead Magnets adaptados al nicho"""
     client = Groq(api_key=api_key)
     modelo = obtener_modelo_activo(client)
     
-    prompt_sistema = (
-        "Eres un estratega de contenido viral. Desarma la fórmula psicológica del video y genera 3 ideas con sus guiones adaptados al nicho.\n\n"
-        "ESTRUCTURA DE RESPUESTA:\n"
-        "### 🧠 1. RADIOGRAFÍA DE LA FÓRMULA VIRAL\n"
-        "- **El Gancho (Hook):** Técnica psicológica que usó y por qué retiene.\n"
-        "- **Estructura de Retención:** Ritmo y manejo de tensión.\n"
-        "- **Remate y CTA:** Estrategia de cierre.\n\n"
-        "---\n"
-        "### 💡 2. BANCO DE 3 IDEAS PARA TU NICHO\n"
-        "- **Idea 1 (Error/Dolor):** Concepto claro.\n"
-        "- **Idea 2 (Secreto/Curiosidad):** Concepto claro.\n"
-        "- **Idea 3 (Hack/Acción Rápida):** Concepto claro.\n\n"
-        "---\n"
-        "### 🎬 3. GUIONES COMPLETOS LISTOS PARA GRABAR\n\n"
-        "#### 📌 GUION 1 (Basado en Idea 1):\n"
-        "- **Gancho (0-3s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Desarrollo (3-20s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Cierre y CTA (20-30s):** \"Texto exacto\"\n\n"
-        "#### 📌 GUION 2 (Basado en Idea 2):\n"
-        "- **Gancho (0-3s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Desarrollo (3-20s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Cierre y CTA (20-30s):** \"Texto exacto\"\n\n"
-        "#### 📌 GUION 3 (Basado en Idea 3):\n"
-        "- **Gancho (0-3s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Desarrollo (3-20s):** [Acción visual] \"Texto exacto\"\n"
-        "- **Cierre y CTA (20-30s):** \"Texto exacto\""
-    )
+    prompt = f"""Eres un estratega de contenido viral, copywriter y arquitecto de embudos de conversión.
+Tu misión es doble:
+1. Desarmar la fórmula del video de referencia y crear 3 guiones adaptados al tema/nicho del usuario.
+2. Diseñar 3 LEAD MAGNETS 100% personalizados y específicos para monetizar ese tema/producto en 3 niveles de valor.
+
+TEMA / PRODUCTO / SERVICIO DEL USUARIO:
+\"{nicho_usuario}\"
+
+TRANSCRIPCIÓN DE REFERENCIA:
+\"{transcripcion}\"
+
+ENTREGA OBLIGATORIA (Usa exactamente la línea separadora "=== DIVISION_LEADS ===" entre los guiones y los lead magnets):
+
+### 🧠 RADIOGRAFÍA DE LA FÓRMULA VIRAL
+- **El Gancho (Hook):** Técnica psicológica que usó y por qué retiene el scroll.
+- **Estructura de Retención:** Ritmo y manejo de la tensión.
+- **Remate y CTA:** Estrategia de cierre.
+
+---
+### 🎬 3 GUIONES VIRALES LISTOS PARA GRABAR
+
+#### 📌 GUION 1 (Enfoque Error o Dolor Oculto):
+- **Gancho [0-3s]:** [Acción visual llamativa] "Texto exacto"
+- **Desarrollo [3-20s]:** [Indicación visual] "Texto exacto"
+- **Cierre y CTA [20-30s]:** "Texto exacto"
+
+#### 📌 GUION 2 (Enfoque Secreto o Curiosidad):
+- **Gancho [0-3s]:** [Acción visual llamativa] "Texto exacto"
+- **Desarrollo [3-20s]:** [Indicación visual] "Texto exacto"
+- **Cierre y CTA [20-30s]:** "Texto exacto"
+
+#### 📌 GUION 3 (Enfoque Hack o Acción Rápida):
+- **Gancho [0-3s]:** [Acción visual llamativa] "Texto exacto"
+- **Desarrollo [3-20s]:** [Indicación visual] "Texto exacto"
+- **Cierre y CTA [20-30s]:** "Texto exacto"
+
+=== DIVISION_LEADS ===
+
+### ⭐ NIVEL 1: ALTO VALOR (IMÁN MASIVO)
+*Objetivo: Atraer a cientos de personas a cambio de su contacto.*
+- **Nombre Irresistible:** [Título magnético adaptado a {nicho_usuario}]
+- **Promesa Central:** [El gran beneficio que promete el recurso]
+- **Formato:** (PDF / Bóveda / Notion / Video Masterclass)
+- **Contenido del Recurso:** [Índice de los 5 puntos clave que incluye]
+
+---
+### 🎯 NIVEL 2: ESPECÍFICO (SOLUCIÓN TÁCTICA)
+*Objetivo: Resolver un problema técnico puntual y generar confianza inmediata.*
+- **Nombre de la Herramienta:** [Plantilla, Calculadora, Checklist o Swipe File]
+- **Dolor Concreto que Resuelve:** [Qué dolor puntual elimina en minutos]
+- **Qué incluye exactamente:** [Estructura del recurso listo para usar]
+
+---
+### 👑 NIVEL 3: PERSONALIZADO (VENTA / AUDITORÍA 1 A 1)
+*Objetivo: Llevar al prospecto calificado a una llamada o contratación directa.*
+- **Nombre de la Oferta:** [Auditoría Express, Diagnóstico de 15 min, Sesión de Estrategia]
+- **Propuesta de Transformación:** [Qué resultado tangible se lleva el cliente]
+- **Guion de Cierre (CTA):** [Las palabras exactas para decir en redes: "Comenta la palabra X para..."]
+"""
+
     res = client.chat.completions.create(
         model=modelo,
-        messages=[
-            {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": f"REFERENCIA:\n{transcripcion}\n\nNICHO:\n{nicho_usuario}"}
-        ],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.4
     )
-    return res.choices[0].message.content
+    
+    contenido = res.choices[0].message.content
+    if "=== DIVISION_LEADS ===" in contenido:
+        partes = contenido.split("=== DIVISION_LEADS ===")
+        return partes[0].strip(), partes[1].strip()
+    else:
+        return contenido.strip(), "No se pudo formatear los lead magnets por separado."
 
 # ==============================================================
-# PESTAÑAS: ENLACE O ARCHIVO
+# ENTRADA DE VIDEO O ARCHIVO
 # ==============================================================
 tab_link, tab_file = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
@@ -296,6 +332,7 @@ with tab_link:
                     else:
                         st.session_state.texto_traducido = None
                     st.session_state.guiones_generados = None
+                    st.session_state.lead_magnets_generados = None
             except Exception as e:
                 st.error(f"{e}")
             finally:
@@ -324,6 +361,8 @@ with tab_file:
                     st.session_state.texto_traducido = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=True)
                 else:
                     st.session_state.texto_traducido = None
+                st.session_state.guiones_generados = None
+                st.session_state.lead_magnets_generados = None
                 st.success("¡Transcripción lista!")
             except Exception as e:
                 st.error(f"Error: {e}")
@@ -335,39 +374,68 @@ with tab_file:
                         pass
 
 # ==============================================================
-# RESULTADOS Y LABORATORIO DE GUIONES
+# SALIDA MODULAR EN PESTAÑAS (CERO SCROLL)
 # ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
-    st.subheader("📝 Transcripción del Video")
-    if st.session_state.texto_traducido:
-        tab_es, tab_orig = st.tabs(["🇪🇸 Español Latino", "🌐 Original"])
-        with tab_es:
-            boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
-            st.text_area("Español", value=st.session_state.texto_traducido, height=200)
-        with tab_orig:
-            boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
-            st.text_area("Original", value=st.session_state.texto_original, height=200)
-    else:
-        boton_copiar(st.session_state.texto_original, id_btn="cp_solo")
-        st.text_area("Transcripción", value=st.session_state.texto_original, height=200)
-
-    st.markdown("---")
-    st.subheader("🎯 Laboratorio de Guiones (Ingeniería Inversa)")
-    nicho_input = st.text_input("Tu tema, producto o nicho:", placeholder="Ej: Negocios digitales, Nutrición...")
     
-    if st.button("Generar", type="primary", key="btn_gen_guiones"):
+    # Cajita compacta para definir el producto/servicio
+    col_nicho, col_btn_gen = st.columns([3, 1])
+    with col_nicho:
+        nicho_input = st.text_input(
+            "Tu tema, producto o servicio:",
+            placeholder="Ej: Asesoría financiera, Café artesanal, Clases de inglés...",
+            label_visibility="collapsed"
+        )
+    with col_btn_gen:
+        btn_generar_estrategia = st.button("Generar", type="primary", key="btn_gen_estrategia")
+
+    if btn_generar_estrategia:
         if not nicho_input.strip():
-            st.warning("Indica tu tema o nicho.")
+            st.warning("Escribe tu tema, producto o servicio para crear los guiones y lead magnets.")
         else:
             texto_base = st.session_state.texto_traducido or st.session_state.texto_original
-            try:
-                with st.spinner("Desarmando fórmula y redactando 3 guiones..."):
-                    st.session_state.guiones_generados = generar_ideas_y_guiones(texto_base, nicho_input.strip(), GROQ_API_KEY)
-            except Exception as e:
-                st.error(f"Error: {e}")
+            with st.spinner("Creando 3 guiones virales y 3 lead magnets a medida..."):
+                try:
+                    guiones, leads = generar_guiones_y_leadmagnets(texto_base, nicho_input.strip(), GROQ_API_KEY)
+                    st.session_state.guiones_generados = guiones
+                    st.session_state.lead_magnets_generados = leads
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
-    if st.session_state.guiones_generados:
-        st.success("¡Guiones generados!")
-        boton_copiar(st.session_state.guiones_generados, id_btn="cp_guiones")
-        st.markdown(st.session_state.guiones_generados)
+    # PESTAÑAS PRINCIPALES DE SALIDA: TODO EN UN SOLO BLOQUE SIN SCROLL
+    tab_out_trans, tab_out_guiones, tab_out_leads = st.tabs([
+        "📝 Transcripción", 
+        "🎬 3 Guiones Virales", 
+        "🎁 3 Lead Magnets a Medida"
+    ])
+
+    # 1. PESTAÑA: TRANSCRIPCIÓN
+    with tab_out_trans:
+        if st.session_state.texto_traducido:
+            sub_es, sub_orig = st.tabs(["🇪🇸 Español Latino", "🌐 Idioma Original"])
+            with sub_es:
+                boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
+                st.text_area("Español", value=st.session_state.texto_traducido, height=260)
+            with sub_orig:
+                boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
+                st.text_area("Original", value=st.session_state.texto_original, height=260)
+        else:
+            boton_copiar(st.session_state.texto_original, id_btn="cp_solo")
+            st.text_area("Transcripción", value=st.session_state.texto_original, height=260)
+
+    # 2. PESTAÑA: GUIONES VIRALES
+    with tab_out_guiones:
+        if st.session_state.guiones_generados:
+            boton_copiar(st.session_state.guiones_generados, id_btn="cp_guiones")
+            st.markdown(st.session_state.guiones_generados)
+        else:
+            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar** para desbloquear los 3 guiones listos para grabar.")
+
+    # 3. PESTAÑA: LEAD MAGNETS PERSONALIZADOS
+    with tab_out_leads:
+        if st.session_state.lead_magnets_generados:
+            boton_copiar(st.session_state.lead_magnets_generados, id_btn="cp_leads")
+            st.markdown(st.session_state.lead_magnets_generados)
+        else:
+            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar** para desbloquear tus 3 Lead Magnets adaptados (Alto Valor, Específico y Personalizado).")
