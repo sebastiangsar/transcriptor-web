@@ -2,4 +2,3 @@ streamlit
 yt-dlp
 groq
 requests
-static-ffmpeg
