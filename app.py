@@ -8,16 +8,36 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-# 1. Configuración de página
 st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
 
-MODELO_LLM = "llama-3.1-8b-instant"
-# 2. Cliente Groq en caché (Ultra-rápido)
 @st.cache_resource(show_spinner=False)
 def get_groq_client(api_key: str) -> Groq:
     return Groq(api_key=api_key)
 
-# 3. Estado de sesión
+# Detección inteligente de modelo disponible (se ejecuta 1 sola vez en caché)
+@st.cache_data(show_spinner=False)
+def obtener_modelo_activo(api_key: str) -> str:
+    try:
+        client = Groq(api_key=api_key)
+        modelos_api = [m.id for m in client.models.list().data]
+        chat_models = [
+            m for m in modelos_api 
+            if not any(x in m.lower() for x in ["whisper", "guard", "audio", "orpheus", "embed", "tts", "stt", "safeguard"])
+        ]
+        prioridad = [
+            "openai/gpt-oss-120b", "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b", "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant"
+        ]
+        for p in prioridad:
+            if p in chat_models:
+                return p
+        if chat_models:
+            return chat_models[0]
+    except Exception:
+        pass
+    return "openai/gpt-oss-20b"
+
 claves_estado = [
     "texto_original", "texto_traducido", "guiones_generados", 
     "lead_magnets_generados"
@@ -26,7 +46,6 @@ for k in claves_estado:
     if k not in st.session_state:
         st.session_state[k] = None
 
-# Lectura segura de secretos
 GROQ_API_KEY = ""
 try:
     if "GROQ_API_KEY" in st.secrets:
@@ -40,9 +59,6 @@ def buscar_archivo_cookies():
             return n
     return None
 
-# ==============================================================
-# BARRA LATERAL
-# ==============================================================
 with st.sidebar:
     st.header("⚙️ Configuración")
     if not GROQ_API_KEY:
@@ -73,7 +89,6 @@ with st.sidebar:
 st.title("🎬 Transcriptor & Estrategia Viral")
 st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
 
-# Botón Copiar
 def boton_copiar(texto: str, id_btn="copiar"):
     if not texto:
         return
@@ -99,9 +114,6 @@ def boton_copiar(texto: str, id_btn="copiar"):
     """
     components.html(html_code, height=42)
 
-# ==============================================================
-# PROCESAMIENTO DE AUDIO DE ALTA VELOCIDAD
-# ==============================================================
 def descargar_tiktok_directo(enlace: str):
     try:
         resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=8)
@@ -168,14 +180,24 @@ def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo="audio.m
 
 def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
     client = get_groq_client(api_key)
-    instruccion = (
-        "Traduce el texto al español latino neutro en párrafos limpios y legibles. Devuelve solo el resultado."
-        if traducir else
-        "Organiza el siguiente texto en párrafos limpios y legibles sin alterar las palabras originales. Devuelve solo el texto."
-    )
+    modelo = obtener_modelo_activo(api_key)
+    
+    if traducir:
+        instruccion = (
+            "Traduce el siguiente texto al español latino neutro. "
+            "Organízalo en párrafos limpios y legibles separados por doble salto de línea. "
+            "Devuelve únicamente el texto traducido sin notas ni introducciones."
+        )
+    else:
+        instruccion = (
+            "Organiza el siguiente texto en párrafos claros y legibles separados por doble salto de línea. "
+            "Mantén estrictamente el idioma original de la transcripción, sin traducir palabras. "
+            "Corrige únicamente signos de puntuación básicos y devuelve únicamente el texto organizado."
+        )
+
     try:
         res = client.chat.completions.create(
-            model=MODELO_LLM,
+            model=modelo,
             messages=[
                 {"role": "system", "content": instruccion},
                 {"role": "user", "content": texto}
@@ -197,6 +219,8 @@ def procesar_texto_paralelo(texto_crudo: str, traducir: bool, api_key: str):
 
 def generar_guiones_y_leadmagnets(transcripcion: str, nicho_usuario: str, api_key: str):
     client = get_groq_client(api_key)
+    modelo = obtener_modelo_activo(api_key)
+    
     prompt = f"""Eres un estratega de contenido viral, copywriter y arquitecto de embudos de conversión.
 Tu misión:
 1. Desarmar la fórmula del video de referencia y crear 3 guiones adaptados al tema/nicho del usuario.
@@ -251,7 +275,7 @@ ENTREGA OBLIGATORIA (Usa exactamente "=== DIVISION_LEADS ===" entre los guiones 
 - **Guion de Cierre (CTA):** [Palabras exactas para llamada a la acción]
 """
     res = client.chat.completions.create(
-        model=MODELO_LLM,
+        model=modelo,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.4
     )
@@ -263,7 +287,7 @@ ENTREGA OBLIGATORIA (Usa exactamente "=== DIVISION_LEADS ===" entre los guiones 
     return contenido.strip(), "No se pudo formatear por separado."
 
 # ==============================================================
-# VISTA PRINCIPAL
+# ENTRADA DE DATOS
 # ==============================================================
 tab_link, tab_file = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
@@ -287,7 +311,7 @@ with tab_link:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz audible en el video.")
                 else:
-                    with st.spinner("✨ Formateando texto..."):
+                    with st.spinner("✨ Estructurando párrafos..."):
                         orig, trad = procesar_texto_paralelo(texto_crudo, traducir_link, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
@@ -318,7 +342,7 @@ with tab_file:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz.")
                 else:
-                    with st.spinner("✨ Formateando..."):
+                    with st.spinner("✨ Estructurando párrafos..."):
                         orig, trad = procesar_texto_paralelo(texto_crudo, traducir_f, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
@@ -328,6 +352,9 @@ with tab_file:
             except Exception as e:
                 st.error(f"Error: {e}")
 
+# ==============================================================
+# SALIDA MODULAR
+# ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
     col_nicho, col_btn_gen = st.columns([3, 1])
@@ -345,7 +372,7 @@ if st.session_state.texto_original:
             st.warning("Escribe tu tema o servicio para generar la estrategia.")
         else:
             texto_base = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner("🧠 Diseñando 3 guiones y 3 lead magnets..."):
+            with st.spinner("🧠 Diseñando guiones y lead magnets..."):
                 try:
                     guiones, leads = generar_guiones_y_leadmagnets(texto_base, nicho_input.strip(), GROQ_API_KEY)
                     st.session_state.guiones_generados = guiones
@@ -361,16 +388,16 @@ if st.session_state.texto_original:
 
     with tab_out_trans:
         if st.session_state.texto_traducido:
-            sub_es, sub_orig = st.tabs(["🇪🇸 Español Latino", "🌐 Original"])
-            with sub_es:
-                boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
-                st.text_area("Español", value=st.session_state.texto_traducido, height=250, label_visibility="collapsed")
+            sub_orig, sub_es = st.tabs(["🌐 Idioma Original", "🇪🇸 Traducción al Español"])
             with sub_orig:
                 boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
-                st.text_area("Original", value=st.session_state.texto_original, height=250, label_visibility="collapsed")
+                st.text_area("Original", value=st.session_state.texto_original, height=260, label_visibility="collapsed")
+            with sub_es:
+                boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
+                st.text_area("Español", value=st.session_state.texto_traducido, height=260, label_visibility="collapsed")
         else:
             boton_copiar(st.session_state.texto_original, id_btn="cp_solo")
-            st.text_area("Transcripción", value=st.session_state.texto_original, height=250, label_visibility="collapsed")
+            st.text_area("Transcripción", value=st.session_state.texto_original, height=260, label_visibility="collapsed")
 
     with tab_out_guiones:
         if st.session_state.guiones_generados:
