@@ -8,13 +8,12 @@ import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
+st.set_page_config(page_title="Ingeniería Inversa de Videos Virales", page_icon="🧠", layout="wide")
 
 @st.cache_resource(show_spinner=False)
 def get_groq_client(api_key: str) -> Groq:
     return Groq(api_key=api_key)
 
-# Detección inteligente de modelo disponible (se ejecuta 1 sola vez en caché)
 @st.cache_data(show_spinner=False)
 def obtener_modelo_activo(api_key: str) -> str:
     try:
@@ -38,10 +37,7 @@ def obtener_modelo_activo(api_key: str) -> str:
         pass
     return "openai/gpt-oss-20b"
 
-claves_estado = [
-    "texto_original", "texto_traducido", "guiones_generados", 
-    "lead_magnets_generados"
-]
+claves_estado = ["texto_original", "texto_traducido", "analisis_col1", "analisis_col2", "analisis_col3"]
 for k in claves_estado:
     if k not in st.session_state:
         st.session_state[k] = None
@@ -64,7 +60,7 @@ with st.sidebar:
     if not GROQ_API_KEY:
         GROQ_API_KEY = st.text_input("Groq API Key:", type="password", placeholder="gsk_...")
     
-    st.subheader("Sesión de Redes / Cookies")
+    st.subheader("Cookies (Instagram/TikTok)")
     cookie_subida = st.file_uploader("Sube cookies.txt:", type=["txt"], key="up_cookies")
     if cookie_subida is not None:
         try:
@@ -81,13 +77,13 @@ with st.sidebar:
         st.caption("Sin cookies.")
 
     st.markdown("---")
-    if st.button("Limpiar datos", use_container_width=True):
+    if st.button("Limpiar todo", use_container_width=True):
         for k in claves_estado:
             st.session_state[k] = None
         st.rerun()
 
-st.title("🎬 Transcriptor & Estrategia Viral")
-st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
+st.title("🧠 Transcriptor & Ingeniería Inversa Viral")
+st.caption("Decodifica la psicología de videos virales y replícala en cualquier producto o servicio.")
 
 def boton_copiar(texto: str, id_btn="copiar"):
     if not texto:
@@ -184,15 +180,15 @@ def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
     
     if traducir:
         instruccion = (
-            "Traduce el siguiente texto al español latino neutro. "
-            "Organízalo en párrafos limpios y legibles separados por doble salto de línea. "
-            "Devuelve únicamente el texto traducido sin notas ni introducciones."
+            "Traduce el siguiente texto al español latinoamericano neutro. "
+            "Organízalo en párrafos claros y legibles separados por doble salto de línea. "
+            "Devuelve únicamente el texto traducido sin introducciones ni notas."
         )
     else:
         instruccion = (
-            "Organiza el siguiente texto en párrafos claros y legibles separados por doble salto de línea. "
-            "Mantén estrictamente el idioma original de la transcripción, sin traducir palabras. "
-            "Corrige únicamente signos de puntuación básicos y devuelve únicamente el texto organizado."
+            "Organiza el siguiente texto en párrafos limpios y legibles separados por doble salto de línea. "
+            "Conserva estrictamente el idioma original sin traducir ninguna palabra. "
+            "Devuelve únicamente el texto estructurado."
         )
 
     try:
@@ -208,94 +204,72 @@ def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
     except Exception:
         return texto
 
-def procesar_texto_paralelo(texto_crudo: str, traducir: bool, api_key: str):
-    if not traducir:
-        return formatear_o_traducir_texto(texto_crudo, api_key, traducir=False), None
-
+def procesar_transcripcion(texto_crudo: str, api_key: str):
     with ThreadPoolExecutor(max_workers=2) as executor:
-        futuro_orig = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, False)
-        futuro_trad = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, True)
-        return futuro_orig.result(), futuro_trad.result()
+        f_orig = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, False)
+        f_trad = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, True)
+        return f_orig.result(), f_trad.result()
 
-def generar_guiones_y_leadmagnets(transcripcion: str, nicho_usuario: str, api_key: str):
+def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, api_key: str):
     client = get_groq_client(api_key)
     modelo = obtener_modelo_activo(api_key)
     
-    prompt = f"""Eres un estratega de contenido viral, copywriter y arquitecto de embudos de conversión.
-Tu misión:
-1. Desarmar la fórmula del video de referencia y crear 3 guiones adaptados al tema/nicho del usuario.
-2. Diseñar 3 LEAD MAGNETS 100% personalizados y específicos para monetizar ese tema/producto en 3 niveles de valor.
+    prompt = f"""Eres un neurocientífico aplicado al marketing, estratega de contenido viral y copywriter de clase mundial.
+Analiza la siguiente TRANSCRIPCIÓN VIRAL con ingeniería inversa profunda para identificar:
+- Mecanismos psicológicos exactos (sesgos, disparadores de dopamina, quiebres de patrón).
+- Estructura de retención y curvas de curiosidad.
+- El entendimiento de la naturaleza humana que hace que la gente no pueda dejar de mirar.
 
-TEMA / PRODUCTO / SERVICIO: \"{nicho_usuario}\"
-TRANSCRIPCIÓN DE REFERENCIA: \"{transcripcion}\"
+Luego, APLICA EXACTAMENTE ESA MISMA FÓRMULA a la NUEVA IDEA del usuario (puede ser producto físico, digital, servicio, marca personal, etc.).
 
-ENTREGA OBLIGATORIA (Usa exactamente "=== DIVISION_LEADS ===" entre los guiones y los lead magnets):
+TRANSCRIPCIÓN ORIGINAL:
+\"{transcripcion}\"
 
-### 🧠 RADIOGRAFÍA DE LA FÓRMULA VIRAL
-- **El Gancho (Hook):** Técnica psicológica que usó.
-- **Estructura de Retención:** Ritmo y manejo de la tensión.
-- **Remate y CTA:** Estrategia de cierre.
+NUEVA IDEA / PRODUCTO / SERVICIO DEL USUARIO:
+\"{idea_usuario}\"
 
----
-### 🎬 3 GUIONES VIRALES LISTOS PARA GRABAR
+ENTREGA TU RESPUESTA OBLIGATORIAMENTE EN 3 BLOQUES SEPARADOS POR "=== DIVISION ===":
 
-#### 📌 GUION 1 (Enfoque Error o Dolor Oculto):
-- **Gancho [0-3s]:** [Acción visual llamativa] "Texto exacto"
-- **Desarrollo [3-20s]:** [Indicación visual] "Texto exacto"
-- **Cierre y CTA [20-30s]:** "Texto exacto"
+BLOQUE 1: DESGLOSE DE INGENIERÍA INVERSA
+- **El Gancho Psicológico:** Qué sesgo o instinto primario activa en los primeros 3 segundos.
+- **Estructura de Retención:** Cómo mantiene la tensión y abre bucles de curiosidad.
+- **Palancas de Naturaleza Humana:** Miedo, estatus, atajo, validación o curiosidad morbosa usada.
+- **Mecánica del Cierre:** Por qué la llamada a la acción funciona.
 
-#### 📌 GUION 2 (Enfoque Secreto o Curiosidad):
-- **Gancho [0-3s]:** [Acción visual llamativa] "Texto exacto"
-- **Desarrollo [3-20s]:** [Indicación visual] "Texto exacto"
-- **Cierre y CTA [20-30s]:** "Texto exacto"
+=== DIVISION ===
 
-#### 📌 GUION 3 (Enfoque Hack o Acción Rápida):
-- **Gancho [0-3s]:** [Acción visual llamativa] "Texto exacto"
-- **Desarrollo [3-20s]:** [Indicación visual] "Texto exacto"
-- **Cierre y CTA [20-30s]:** "Texto exacto"
+BLOQUE 2: NUEVO GUION VIRAL ADAPTADO
+- **Gancho (Hook) [0-3s]:** "Texto exacto de alto impacto visual y verbal adaptado a {idea_usuario}"
+- **Desarrollo (Retención) [3-25s]:** "Texto exacto del cuerpo manteniendo la fórmula psicológica del original"
+- **Llamada a la Acción (CTA) [25-30s]:** "Texto exacto para convertir la atención en comentarios, seguidores o clientes"
 
-=== DIVISION_LEADS ===
+=== DIVISION ===
 
-### ⭐ NIVEL 1: ALTO VALOR (IMÁN MASIVO)
-- **Nombre Irresistible:** [Título magnético]
-- **Promesa Central:** [Gran beneficio]
-- **Formato:** (PDF / Bóveda / Notion / Video Masterclass)
-- **Contenido del Recurso:** [Índice de 5 puntos clave]
-
----
-### 🎯 NIVEL 2: ESPECÍFICO (SOLUCIÓN TÁCTICA)
-- **Nombre de la Herramienta:** [Plantilla, Calculadora, Checklist o Swipe File]
-- **Dolor Concreto que Resuelve:** [Qué dolor puntual elimina]
-- **Qué incluye exactamente:** [Estructura del recurso]
-
----
-### 👑 NIVEL 3: PERSONALIZADO (VENTA / AUDITORÍA 1 A 1)
-- **Nombre de la Oferta:** [Auditoría Express, Diagnóstico, Sesión]
-- **Propuesta de Transformación:** [Resultado tangible]
-- **Guion de Cierre (CTA):** [Palabras exactas para llamada a la acción]
+BLOQUE 3: DIRECCIÓN DE ATENCIÓN Y EDICIÓN
+- **Disruptor Visual Inicial:** Qué debe verse en pantalla exactamente en el segundo 0 para detener el scroll.
+- **Ritmo y Lenguaje Corporal:** Tono de voz, micro-gestos y energía requerida.
+- **Edición y Quiebres de Patrón:** Cambios de plano, sonidos y textos en pantalla necesarios para que nadie se vaya.
 """
     res = client.chat.completions.create(
         model=modelo,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.4
+        temperature=0.3
     )
     
     contenido = res.choices[0].message.content
-    if "=== DIVISION_LEADS ===" in contenido:
-        partes = contenido.split("=== DIVISION_LEADS ===")
-        return partes[0].strip(), partes[1].strip()
-    return contenido.strip(), "No se pudo formatear por separado."
+    partes = contenido.split("=== DIVISION ===")
+    if len(partes) >= 3:
+        return partes[0].strip(), partes[1].strip(), partes[2].strip()
+    return contenido.strip(), "Error al dividir columnas", "Error al dividir columnas"
 
 # ==============================================================
-# ENTRADA DE DATOS
+# ENTRADA
 # ==============================================================
 tab_link, tab_file = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
 with tab_link:
     url = st.text_input("Enlace de YouTube, TikTok o Instagram:")
-    traducir_link = st.checkbox("Traducir al español latino si viene en otro idioma", value=True, key="chk_link")
-    
-    if st.button("Transcribir", type="primary", key="btn_trans"):
+    if st.button("Transcribir Video", type="primary", key="btn_trans"):
         if not GROQ_API_KEY.strip():
             st.error("Ingresa tu Groq API Key en la barra lateral.")
         elif not url.strip():
@@ -309,14 +283,15 @@ with tab_link:
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
 
                 if not texto_crudo.strip():
-                    st.warning("No se detectó voz audible en el video.")
+                    st.warning("No se detectó voz audible.")
                 else:
-                    with st.spinner("✨ Estructurando párrafos..."):
-                        orig, trad = procesar_texto_paralelo(texto_crudo, traducir_link, GROQ_API_KEY)
+                    with st.spinner("✨ Procesando idiomas y párrafos..."):
+                        orig, trad = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
-                        st.session_state.guiones_generados = None
-                        st.session_state.lead_magnets_generados = None
+                        st.session_state.analisis_col1 = None
+                        st.session_state.analisis_col2 = None
+                        st.session_state.analisis_col3 = None
             except Exception as e:
                 st.error(f"Error: {e}")
             finally:
@@ -328,87 +303,90 @@ with tab_link:
 
 with tab_file:
     archivo_subido = st.file_uploader("Arrastra tu archivo (.mp3, .mp4, .m4a, .wav):", type=["mp3", "mp4", "m4a", "wav"])
-    traducir_f = st.checkbox("Traducir al español latino", value=True, key="chk_f")
-    
-    if archivo_subido and st.button("Transcribir Archivo", key="btn_sub_file"):
+    if archivo_subido and st.button("Transcribir Archivo Subido", key="btn_sub_file"):
         if not GROQ_API_KEY.strip():
             st.error("Ingresa tu Groq API Key en la barra lateral.")
         else:
             try:
-                with st.spinner("🎙️ Transcribiendo desde memoria..."):
+                with st.spinner("🎙️ Transcribiendo audio en memoria..."):
                     buffer_audio = archivo_subido.getvalue()
                     texto_crudo = transcribir_con_groq(buffer_audio, GROQ_API_KEY, nombre_archivo=archivo_subido.name)
 
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz.")
                 else:
-                    with st.spinner("✨ Estructurando párrafos..."):
-                        orig, trad = procesar_texto_paralelo(texto_crudo, traducir_f, GROQ_API_KEY)
+                    with st.spinner("✨ Estructurando idiomas y párrafos..."):
+                        orig, trad = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
-                        st.session_state.guiones_generados = None
-                        st.session_state.lead_magnets_generados = None
+                        st.session_state.analisis_col1 = None
+                        st.session_state.analisis_col2 = None
+                        st.session_state.analisis_col3 = None
                         st.success("¡Transcripción completada!")
             except Exception as e:
                 st.error(f"Error: {e}")
 
 # ==============================================================
-# SALIDA MODULAR
+# SALIDA: TRANSCRIPCIONES + INGENIERÍA INVERSA
 # ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
-    col_nicho, col_btn_gen = st.columns([3, 1])
-    with col_nicho:
-        nicho_input = st.text_input(
-            "Tu tema, producto o servicio:",
-            placeholder="Ej: Asesoría financiera, Café artesanal...",
-            label_visibility="collapsed"
-        )
-    with col_btn_gen:
-        btn_generar_estrategia = st.button("Generar Estrategia", type="primary", key="btn_gen_estrategia", use_container_width=True)
+    st.subheader("📝 Transcripción del Video")
+    
+    # 2 PESTAÑAS: Español Latinoamericano e Idioma Original
+    tab_es, tab_orig = st.tabs(["🇪🇸 Español Latinoamericano", "🌐 Idioma Original"])
+    
+    with tab_es:
+        boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
+        st.text_area("Texto en Español", value=st.session_state.texto_traducido, height=220, label_visibility="collapsed")
+        
+    with tab_orig:
+        boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
+        st.text_area("Texto Original", value=st.session_state.texto_original, height=220, label_visibility="collapsed")
 
-    if btn_generar_estrategia:
-        if not nicho_input.strip():
-            st.warning("Escribe tu tema o servicio para generar la estrategia.")
+    # ==============================================================
+    # SECCIÓN: APLICAR INGENIERÍA INVERSA A UNA NUEVA IDEA
+    # ==============================================================
+    st.markdown("---")
+    st.subheader("🔬 Ingeniería Inversa Viral")
+    st.caption("Extrae los métodos psicológicos del video y aplícalos a cualquier producto, servicio o idea.")
+
+    idea_input = st.text_area(
+        "Describe tu nueva idea, producto o servicio:",
+        placeholder="Ej: Curso de finanzas personales, Venta de café orgánico por suscripción, Consultoría SEO, Agencia de diseño...",
+        height=80
+    )
+
+    if st.button("🚀 Aplicar Ingeniería Inversa", type="primary", use_container_width=True):
+        if not idea_input.strip():
+            st.warning("Escribe primero tu idea, producto o servicio.")
         else:
-            texto_base = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner("🧠 Diseñando guiones y lead magnets..."):
+            base_texto = st.session_state.texto_traducido or st.session_state.texto_original
+            with st.spinner("🧠 Decodificando técnicas psicológicas y adaptando la fórmula..."):
                 try:
-                    guiones, leads = generar_guiones_y_leadmagnets(texto_base, nicho_input.strip(), GROQ_API_KEY)
-                    st.session_state.guiones_generados = guiones
-                    st.session_state.lead_magnets_generados = leads
+                    c1, c2, c3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), GROQ_API_KEY)
+                    st.session_state.analisis_col1 = c1
+                    st.session_state.analisis_col2 = c2
+                    st.session_state.analisis_col3 = c3
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error procesando la ingeniería inversa: {e}")
 
-    tab_out_trans, tab_out_guiones, tab_out_leads = st.tabs([
-        "📝 Transcripción", 
-        "🎬 3 Guiones Virales", 
-        "🎁 3 Lead Magnets"
-    ])
+    # CUADRO DE 3 COLUMNAS
+    if st.session_state.analisis_col1:
+        st.markdown("### 📊 Resultado de la Ingeniería Inversa")
+        col1, col2, col3 = st.columns(3)
 
-    with tab_out_trans:
-        if st.session_state.texto_traducido:
-            sub_orig, sub_es = st.tabs(["🌐 Idioma Original", "🇪🇸 Traducción al Español"])
-            with sub_orig:
-                boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
-                st.text_area("Original", value=st.session_state.texto_original, height=260, label_visibility="collapsed")
-            with sub_es:
-                boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
-                st.text_area("Español", value=st.session_state.texto_traducido, height=260, label_visibility="collapsed")
-        else:
-            boton_copiar(st.session_state.texto_original, id_btn="cp_solo")
-            st.text_area("Transcripción", value=st.session_state.texto_original, height=260, label_visibility="collapsed")
+        with col1:
+            st.markdown("#### 🧠 1. Métodos y Psicología")
+            boton_copiar(st.session_state.analisis_col1, id_btn="cp_col1")
+            st.info(st.session_state.analisis_col1)
 
-    with tab_out_guiones:
-        if st.session_state.guiones_generados:
-            boton_copiar(st.session_state.guiones_generados, id_btn="cp_guiones")
-            st.markdown(st.session_state.guiones_generados)
-        else:
-            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar Estrategia**.")
+        with col2:
+            st.markdown("#### 🎬 2. Nuevo Guion Viral")
+            boton_copiar(st.session_state.analisis_col2, id_btn="cp_col2")
+            st.success(st.session_state.analisis_col2)
 
-    with tab_out_leads:
-        if st.session_state.lead_magnets_generados:
-            boton_copiar(st.session_state.lead_magnets_generados, id_btn="cp_leads")
-            st.markdown(st.session_state.lead_magnets_generados)
-        else:
-            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar Estrategia**.")
+        with col3:
+            st.markdown("#### 👁️ 3. Retención y Edición")
+            boton_copiar(st.session_state.analisis_col3, id_btn="cp_col3")
+            st.warning(st.session_state.analisis_col3)
