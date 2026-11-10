@@ -1,79 +1,50 @@
 import os
-import re
 import json
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 import yt_dlp
 from groq import Groq
 
-# 1. Configuración de página al inicio absoluto
+# 1. Configuración de página
 st.set_page_config(page_title="Transcriptor & Estrategia Viral", page_icon="🎬", layout="centered")
 
-# Activa FFmpeg: en la nube usa packages.txt; en local usa static_ffmpeg
-try:
-    import static_ffmpeg
-    static_ffmpeg.add_paths()
-except Exception:
-    pass
+# Modelo predeterminado ultra-rápido y con alta capacidad de razonamiento
+MODELO_LLM = "llama-3.3-70b-versatile"
 
-st.title("🎬 Transcriptor & Estrategia Viral")
-st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
+# 2. Inicialización única (Cacheada para evitar retrasos en reruns)
+@st.cache_resource(show_spinner=False)
+def init_environment():
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+    except Exception:
+        pass
 
-# Memoria de sesión limpia y persistente
+init_environment()
+
+@st.cache_resource(show_spinner=False)
+def get_groq_client(api_key: str) -> Groq:
+    return Groq(api_key=api_key)
+
+# 3. Estado de sesión
 claves_estado = [
     "texto_original", "texto_traducido", "guiones_generados", 
-    "lead_magnets_generados", "groq_chat_model"
+    "lead_magnets_generados"
 ]
 for k in claves_estado:
     if k not in st.session_state:
         st.session_state[k] = None
 
-# Manejo seguro de la API Key
-GROQ_API_KEY = ""
-try:
-    if "GROQ_API_KEY" in st.secrets:
-        GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-except Exception:
-    pass
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 
 def buscar_archivo_cookies():
     for n in ["cookies.txt", "cookies.txt.txt", "instagram.com_cookies.txt"]:
-        if os.path.exists(n):
+        if os.path.isfile(n):
             return n
     return None
-
-def obtener_modelo_activo(client):
-    """Detecta el modelo de texto activo en tu cuenta para evitar errores 404"""
-    if st.session_state.groq_chat_model:
-        return st.session_state.groq_chat_model
-
-    modelo_detectado = None
-    try:
-        modelos_api = [m.id for m in client.models.list().data]
-        chat_models = [
-            m for m in modelos_api 
-            if not any(x in m.lower() for x in ["whisper", "guard", "audio", "orpheus", "embed", "tts", "stt"])
-        ]
-        prioridad = [
-            "openai/gpt-oss-120b", "openai/gpt-oss-20b",
-            "qwen/qwen3.8-27b", "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant"
-        ]
-        for p in prioridad:
-            if p in chat_models:
-                modelo_detectado = p
-                break
-        if not modelo_detectado and chat_models:
-            modelo_detectado = chat_models[0]
-    except Exception:
-        pass
-
-    if not modelo_detectado:
-        modelo_detectado = "openai/gpt-oss-120b"
-
-    st.session_state.groq_chat_model = modelo_detectado
-    return modelo_detectado
 
 # ==============================================================
 # BARRA LATERAL: CONFIGURACIÓN
@@ -83,8 +54,8 @@ with st.sidebar:
     if not GROQ_API_KEY:
         GROQ_API_KEY = st.text_input("Groq API Key:", type="password", placeholder="gsk_...")
     
-    st.subheader("Sesión de Instagram")
-    cookie_subida = st.file_uploader("Sube cookies.txt aquí:", type=["txt"], key="up_cookies")
+    st.subheader("Sesión de Redes / Cookies")
+    cookie_subida = st.file_uploader("Sube cookies.txt:", type=["txt"], key="up_cookies")
     if cookie_subida is not None:
         try:
             with open("cookies.txt", "wb") as f:
@@ -97,88 +68,86 @@ with st.sidebar:
     if archivo_cookies:
         st.success(f"Sesión activa ({archivo_cookies})")
     else:
-        st.warning("Sin cookies.")
+        st.caption("Sin cookies (necesarias para videos privados o con restricción)")
 
     st.markdown("---")
-    st.info("💡 **Tip:** Los 3 Lead Magnets ahora se generan automáticamente dentro de la pestaña dedicada según tu producto o servicio.")
-    
-    if st.button("Limpiar datos"):
+    if st.button("Limpiar datos", use_container_width=True):
         for k in claves_estado:
             st.session_state[k] = None
         st.rerun()
 
-def boton_copiar(texto, id_btn="copiar"):
+st.title("🎬 Transcriptor & Estrategia Viral")
+st.caption("Videos Virales, Guiones con IA y Lead Magnets a medida")
+
+# Botón de copiar rápido
+def boton_copiar(texto: str, id_btn="copiar"):
     if not texto:
         return
     texto_json = json.dumps(texto)
     html_code = f"""
-    <button id="{id_btn}" onclick="copiar_{id_btn}()" style="
-        background-color: #10b981;
-        color: white;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 14px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    ">📋 Copiar</button>
-    <span id="msg_{id_btn}" style="margin-left: 10px; color: #10b981; font-weight: bold; display: none;">✅ ¡Copiado!</span>
-
+    <button onclick="copiar_{id_btn}()" style="
+        background-color: #10b981; color: white; border: none; padding: 6px 14px;
+        border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
+        display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+        📋 Copiar
+    </button>
+    <span id="msg_{id_btn}" style="margin-left: 10px; color: #10b981; font-weight: bold; font-size: 13px; display: none;">✅ ¡Copiado!</span>
     <script>
     function copiar_{id_btn}() {{
         const text = {texto_json};
         navigator.clipboard.writeText(text).then(() => {{
             const msg = document.getElementById('msg_{id_btn}');
             msg.style.display = 'inline';
-            setTimeout(() => {{ msg.style.display = 'none'; }}, 2500);
-        }}).catch(err => {{
-            alert('Error al copiar: ' + err);
+            setTimeout(() => {{ msg.style.display = 'none'; }}, 2000);
         }});
     }}
     </script>
     """
-    components.html(html_code, height=45)
+    components.html(html_code, height=42)
 
-def descargar_tiktok_directo(enlace):
+# ==============================================================
+# PROCESAMIENTO RÁPIDO DE AUDIO
+# ==============================================================
+def descargar_tiktok_directo(enlace: str):
+    """Descarga de alta velocidad para TikTok omitiendo FFmpeg"""
     try:
-        resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=20)
+        resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=8)
         data = resp.json()
         if data.get("code") == 0 and "data" in data:
             media_url = data["data"].get("music") or data["data"].get("play")
             if media_url:
                 if media_url.startswith("/"):
                     media_url = f"https://www.tikwm.com{media_url}"
-                r = requests.get(media_url, timeout=40)
-                ruta = "temp_audio.mp3"
-                with open(ruta, "wb") as f:
-                    f.write(r.content)
-                return ruta
+                r = requests.get(media_url, timeout=12)
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+                temp_file.write(r.content)
+                temp_file.close()
+                return temp_file.name
     except Exception:
         pass
     return None
 
-def extraer_audio(enlace):
+def extraer_audio_rapido(enlace: str) -> str:
+    """Descarga audio directo en formato nativo sin recodificar a mp3"""
     if "tiktok.com" in enlace:
         tk = descargar_tiktok_directo(enlace)
         if tk:
             return tk
 
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".m4a")
+    temp_path = temp_file.name
+    temp_file.close()
+
+    # bestaudio directo (m4a/aac/opus) -> Omite re-encoding de FFmpeg (10x más rápido)
     opciones = {
-        'format': 'ba/b',
-        'outtmpl': 'temp_audio.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '32',
-        }],
-        'extractor_args': {
-            'youtube': {'player_client': ['android', 'ios', 'web_creator']}
-        },
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+        'outtmpl': temp_path,
         'quiet': True,
         'no_warnings': True,
+        'overwrites': True,
+        'extractor_args': {
+            'youtube': {'player_client': ['android', 'web']}
+        }
     }
 
     cookies_file = buscar_archivo_cookies()
@@ -188,61 +157,70 @@ def extraer_audio(enlace):
     with yt_dlp.YoutubeDL(opciones) as ydl:
         ydl.download([enlace])
 
-    return "temp_audio.mp3"
+    return temp_path
 
-def transcribir_con_groq(ruta_archivo, api_key):
-    client = Groq(api_key=api_key)
-    with open(ruta_archivo, "rb") as file:
-        transcription = client.audio.transcriptions.create(
-            file=(ruta_archivo, file.read()),
-            model="whisper-large-v3-turbo",
-            response_format="text",
-            temperature=0.0
-        )
+def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo="audio.mp3") -> str:
+    client = get_groq_client(api_key)
+    
+    if isinstance(archivo_o_buffer, str):
+        with open(archivo_o_buffer, "rb") as f:
+            contenido = f.read()
+    else:
+        contenido = archivo_o_buffer
+
+    transcription = client.audio.transcriptions.create(
+        file=(nombre_archivo, contenido),
+        model="whisper-large-v3-turbo",
+        response_format="text",
+        temperature=0.0
+    )
     return transcription
 
-def formatear_y_traducir(texto, api_key, traducir=True):
-    client = Groq(api_key=api_key)
-    modelo = obtener_modelo_activo(client)
-    
-    if traducir:
-        instruccion = "Traduce el texto al español latino neutro en párrafos limpios separados por salto doble. Devuelve solo el texto."
-    else:
-        instruccion = "Organiza el texto en párrafos limpios separados por doble salto de línea. Devuelve solo el texto."
+def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
+    client = get_groq_client(api_key)
+    instruccion = (
+        "Traduce el texto al español latino neutro en párrafos limpios y legibles. Devuelve solo el resultado."
+        if traducir else
+        "Organiza el siguiente texto en párrafos limpios y legibles sin alterar las palabras originales. Devuelve solo el texto."
+    )
 
     try:
         res = client.chat.completions.create(
-            model=modelo,
+            model=MODELO_LLM,
             messages=[
                 {"role": "system", "content": instruccion},
                 {"role": "user", "content": texto}
             ],
-            temperature=0.3
+            temperature=0.2
         )
-        return res.choices[0].message.content
+        return res.choices[0].message.content.strip()
     except Exception:
         return texto
 
-def generar_guiones_y_leadmagnets(transcripcion, nicho_usuario, api_key):
-    """Genera simultáneamente la radiografía, 3 guiones y los 3 Lead Magnets adaptados al nicho"""
-    client = Groq(api_key=api_key)
-    modelo = obtener_modelo_activo(client)
-    
+def procesar_texto_paralelo(texto_crudo: str, traducir: bool, api_key: str):
+    """Ejecuta formateo y traducción concurrentemente en hilos separados"""
+    if not traducir:
+        return formatear_o_traducir_texto(texto_crudo, api_key, traducir=False), None
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futuro_orig = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, False)
+        futuro_trad = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, True)
+        return futuro_orig.result(), futuro_trad.result()
+
+def generar_guiones_y_leadmagnets(transcripcion: str, nicho_usuario: str, api_key: str):
+    client = get_groq_client(api_key)
     prompt = f"""Eres un estratega de contenido viral, copywriter y arquitecto de embudos de conversión.
-Tu misión es doble:
+Tu misión:
 1. Desarmar la fórmula del video de referencia y crear 3 guiones adaptados al tema/nicho del usuario.
 2. Diseñar 3 LEAD MAGNETS 100% personalizados y específicos para monetizar ese tema/producto en 3 niveles de valor.
 
-TEMA / PRODUCTO / SERVICIO DEL USUARIO:
-\"{nicho_usuario}\"
+TEMA / PRODUCTO / SERVICIO: \"{nicho_usuario}\"
+TRANSCRIPCIÓN DE REFERENCIA: \"{transcripcion}\"
 
-TRANSCRIPCIÓN DE REFERENCIA:
-\"{transcripcion}\"
-
-ENTREGA OBLIGATORIA (Usa exactamente la línea separadora "=== DIVISION_LEADS ===" entre los guiones y los lead magnets):
+ENTREGA OBLIGATORIA (Usa exactamente "=== DIVISION_LEADS ===" entre los guiones y los lead magnets):
 
 ### 🧠 RADIOGRAFÍA DE LA FÓRMULA VIRAL
-- **El Gancho (Hook):** Técnica psicológica que usó y por qué retiene el scroll.
+- **El Gancho (Hook):** Técnica psicológica que usó.
 - **Estructura de Retención:** Ritmo y manejo de la tensión.
 - **Remate y CTA:** Estrategia de cierre.
 
@@ -267,29 +245,25 @@ ENTREGA OBLIGATORIA (Usa exactamente la línea separadora "=== DIVISION_LEADS ==
 === DIVISION_LEADS ===
 
 ### ⭐ NIVEL 1: ALTO VALOR (IMÁN MASIVO)
-*Objetivo: Atraer a cientos de personas a cambio de su contacto.*
-- **Nombre Irresistible:** [Título magnético adaptado a {nicho_usuario}]
-- **Promesa Central:** [El gran beneficio que promete el recurso]
+- **Nombre Irresistible:** [Título magnético]
+- **Promesa Central:** [Gran beneficio]
 - **Formato:** (PDF / Bóveda / Notion / Video Masterclass)
-- **Contenido del Recurso:** [Índice de los 5 puntos clave que incluye]
+- **Contenido del Recurso:** [Índice de 5 puntos clave]
 
 ---
 ### 🎯 NIVEL 2: ESPECÍFICO (SOLUCIÓN TÁCTICA)
-*Objetivo: Resolver un problema técnico puntual y generar confianza inmediata.*
 - **Nombre de la Herramienta:** [Plantilla, Calculadora, Checklist o Swipe File]
-- **Dolor Concreto que Resuelve:** [Qué dolor puntual elimina en minutos]
-- **Qué incluye exactamente:** [Estructura del recurso listo para usar]
+- **Dolor Concreto que Resuelve:** [Qué dolor puntual elimina]
+- **Qué incluye exactamente:** [Estructura del recurso]
 
 ---
 ### 👑 NIVEL 3: PERSONALIZADO (VENTA / AUDITORÍA 1 A 1)
-*Objetivo: Llevar al prospecto calificado a una llamada o contratación directa.*
-- **Nombre de la Oferta:** [Auditoría Express, Diagnóstico de 15 min, Sesión de Estrategia]
-- **Propuesta de Transformación:** [Qué resultado tangible se lleva el cliente]
-- **Guion de Cierre (CTA):** [Las palabras exactas para decir en redes: "Comenta la palabra X para..."]
+- **Nombre de la Oferta:** [Auditoría Express, Diagnóstico, Sesión]
+- **Propuesta de Transformación:** [Resultado tangible]
+- **Guion de Cierre (CTA):** [Palabras exactas para llamada a la acción]
 """
-
     res = client.chat.completions.create(
-        model=modelo,
+        model=MODELO_LLM,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.4
     )
@@ -298,11 +272,10 @@ ENTREGA OBLIGATORIA (Usa exactamente la línea separadora "=== DIVISION_LEADS ==
     if "=== DIVISION_LEADS ===" in contenido:
         partes = contenido.split("=== DIVISION_LEADS ===")
         return partes[0].strip(), partes[1].strip()
-    else:
-        return contenido.strip(), "No se pudo formatear los lead magnets por separado."
+    return contenido.strip(), "No se pudo formatear por separado."
 
 # ==============================================================
-# ENTRADA DE VIDEO O ARCHIVO
+# INTERFAZ DE ENTRADA
 # ==============================================================
 tab_link, tab_file = st.tabs(["🔗 Enlace de Redes", "📁 Subir Archivo"])
 
@@ -318,23 +291,22 @@ with tab_link:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("Descargando audio..."):
-                    archivo_temporal = extraer_audio(url.strip())
-                with st.spinner("Transcribiendo con Groq Whisper..."):
+                with st.spinner("⚡ Extrayendo audio en alta velocidad..."):
+                    archivo_temporal = extraer_audio_rapido(url.strip())
+                with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
 
-                if not texto_crudo:
-                    st.warning("No se detectó voz.")
+                if not texto_crudo.strip():
+                    st.warning("No se detectó voz audible en el video.")
                 else:
-                    st.session_state.texto_original = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=False)
-                    if traducir_link:
-                        st.session_state.texto_traducido = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=True)
-                    else:
-                        st.session_state.texto_traducido = None
-                    st.session_state.guiones_generados = None
-                    st.session_state.lead_magnets_generados = None
+                    with st.spinner("✨ Limpiando y estructurando..."):
+                        orig, trad = procesar_texto_paralelo(texto_crudo, traducir_link, GROQ_API_KEY)
+                        st.session_state.texto_original = orig
+                        st.session_state.texto_traducido = trad
+                        st.session_state.guiones_generados = None
+                        st.session_state.lead_magnets_generados = None
             except Exception as e:
-                st.error(f"{e}")
+                st.error(f"Error durante el proceso: {e}")
             finally:
                 if archivo_temporal and os.path.exists(archivo_temporal):
                     try:
@@ -343,43 +315,38 @@ with tab_link:
                         pass
 
 with tab_file:
-    archivo_subido = st.file_uploader("Arrastra tu archivo aquí (.mp3, .mp4, etc.):", type=["mp3", "mp4", "m4a", "wav"])
+    archivo_subido = st.file_uploader("Arrastra tu archivo (.mp3, .mp4, .m4a, .wav):", type=["mp3", "mp4", "m4a", "wav"])
     traducir_f = st.checkbox("Traducir al español latino", value=True, key="chk_f")
     
-    if archivo_subido and st.button("Transcribir", key="btn_sub_file"):
+    if archivo_subido and st.button("Transcribir Archivo", key="btn_sub_file"):
         if not GROQ_API_KEY.strip():
             st.error("Ingresa tu Groq API Key en la barra lateral.")
         else:
-            nombre_temp = f"temp_subido_{archivo_subido.name}"
             try:
-                with open(nombre_temp, "wb") as f:
-                    f.write(archivo_subido.getbuffer())
-                with st.spinner("Transcribiendo audio..."):
-                    texto_crudo = transcribir_con_groq(nombre_temp, GROQ_API_KEY)
-                st.session_state.texto_original = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=False)
-                if traducir_f:
-                    st.session_state.texto_traducido = formatear_y_traducir(texto_crudo, GROQ_API_KEY, traducir=True)
+                # Directo de memoria sin escribir a disco
+                with st.spinner("🎙️ Transcribiendo audio..."):
+                    buffer_audio = archivo_subido.getvalue()
+                    texto_crudo = transcribir_con_groq(buffer_audio, GROQ_API_KEY, nombre_archivo=archivo_subido.name)
+
+                if not texto_crudo.strip():
+                    st.warning("No se detectó voz.")
                 else:
-                    st.session_state.texto_traducido = None
-                st.session_state.guiones_generados = None
-                st.session_state.lead_magnets_generados = None
-                st.success("¡Transcripción lista!")
+                    with st.spinner("✨ Estructurando..."):
+                        orig, trad = procesar_texto_paralelo(texto_crudo, traducir_f, GROQ_API_KEY)
+                        st.session_state.texto_original = orig
+                        st.session_state.texto_traducido = trad
+                        st.session_state.guiones_generados = None
+                        st.session_state.lead_magnets_generados = None
+                        st.success("¡Transcripción completada!")
             except Exception as e:
                 st.error(f"Error: {e}")
-            finally:
-                if os.path.exists(nombre_temp):
-                    try:
-                        os.remove(nombre_temp)
-                    except Exception:
-                        pass
 
 # ==============================================================
-# SALIDA MODULAR EN PESTAÑAS (CERO SCROLL)
+# RESULTADOS
 # ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
     
-    # Cajita compacta para definir el producto/servicio
     col_nicho, col_btn_gen = st.columns([3, 1])
     with col_nicho:
         nicho_input = st.text_input(
@@ -388,54 +355,50 @@ if st.session_state.texto_original:
             label_visibility="collapsed"
         )
     with col_btn_gen:
-        btn_generar_estrategia = st.button("Generar", type="primary", key="btn_gen_estrategia")
+        btn_generar_estrategia = st.button("Generar Estrategia", type="primary", key="btn_gen_estrategia", use_container_width=True)
 
     if btn_generar_estrategia:
         if not nicho_input.strip():
-            st.warning("Escribe tu tema, producto o servicio para crear los guiones y lead magnets.")
+            st.warning("Escribe tu tema o servicio para generar la estrategia.")
         else:
             texto_base = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner("Creando 3 guiones virales y 3 lead magnets a medida..."):
+            with st.spinner("🧠 Diseñando 3 guiones y 3 lead magnets..."):
                 try:
                     guiones, leads = generar_guiones_y_leadmagnets(texto_base, nicho_input.strip(), GROQ_API_KEY)
                     st.session_state.guiones_generados = guiones
                     st.session_state.lead_magnets_generados = leads
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error generando contenido: {e}")
 
-    # PESTAÑAS PRINCIPALES DE SALIDA: TODO EN UN SOLO BLOQUE SIN SCROLL
     tab_out_trans, tab_out_guiones, tab_out_leads = st.tabs([
         "📝 Transcripción", 
         "🎬 3 Guiones Virales", 
-        "🎁 3 Lead Magnets a Medida"
+        "🎁 3 Lead Magnets"
     ])
 
-    # 1. PESTAÑA: TRANSCRIPCIÓN
     with tab_out_trans:
         if st.session_state.texto_traducido:
-            sub_es, sub_orig = st.tabs(["🇪🇸 Español Latino", "🌐 Idioma Original"])
+            sub_es, sub_orig = st.tabs(["🇪🇸 Español Latino", "🌐 Original"])
             with sub_es:
                 boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
-                st.text_area("Español", value=st.session_state.texto_traducido, height=260)
+                st.text_area("Español", value=st.session_state.texto_traducido, height=250, label_visibility="collapsed")
             with sub_orig:
                 boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
-                st.text_area("Original", value=st.session_state.texto_original, height=260)
+                st.text_area("Original", value=st.session_state.texto_original, height=250, label_visibility="collapsed")
         else:
             boton_copiar(st.session_state.texto_original, id_btn="cp_solo")
-            st.text_area("Transcripción", value=st.session_state.texto_original, height=260)
+            st.text_area("Transcripción", value=st.session_state.texto_original, height=250, label_visibility="collapsed")
 
-    # 2. PESTAÑA: GUIONES VIRALES
     with tab_out_guiones:
         if st.session_state.guiones_generados:
             boton_copiar(st.session_state.guiones_generados, id_btn="cp_guiones")
             st.markdown(st.session_state.guiones_generados)
         else:
-            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar** para desbloquear los 3 guiones listos para grabar.")
+            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar Estrategia**.")
 
-    # 3. PESTAÑA: LEAD MAGNETS PERSONALIZADOS
     with tab_out_leads:
         if st.session_state.lead_magnets_generados:
             boton_copiar(st.session_state.lead_magnets_generados, id_btn="cp_leads")
             st.markdown(st.session_state.lead_magnets_generados)
         else:
-            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar** para desbloquear tus 3 Lead Magnets adaptados (Alto Valor, Específico y Personalizado).")
+            st.info("💡 Escribe tu producto o servicio arriba y presiona **Generar Estrategia**.")
