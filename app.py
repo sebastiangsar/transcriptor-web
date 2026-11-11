@@ -39,7 +39,7 @@ def obtener_modelo_activo(api_key: str) -> str:
     return "openai/gpt-oss-20b"
 
 claves_estado = [
-    "texto_original", "texto_traducido", 
+    "texto_original", "texto_traducido", "tipo_contenido", "descripcion_tipo",
     "res_analisis", "res_g1", "res_g2", "res_g3"
 ]
 for k in claves_estado:
@@ -114,7 +114,6 @@ def boton_copiar(texto: str, id_btn="copiar"):
     """
     components.html(html_code, height=42)
 
-# Extrae estrictamente la tercera columna de la tabla (lo que se dice)
 def extraer_solo_guion_hablado(texto_markdown: str) -> str:
     lineas = texto_markdown.strip().split("\n")
     frases = []
@@ -226,38 +225,90 @@ def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
     except Exception:
         return texto
 
+def clasificar_tipo_contenido(texto: str, api_key: str):
+    client = get_groq_client(api_key)
+    modelo = obtener_modelo_activo(api_key)
+    prompt = f"""Analiza la siguiente transcripción y clasifícala estrictamente en una de dos categorías:
+1. EDUCATIVO / MARKETING (Tutorial, negocio, ventas, consejos, marca personal, hack)
+2. MINIDRAMA / FICCIÓN / STORYTELLING (Sketch, actuación entre personajes, cine, historia actuada, telenovela corta)
+
+TRANSCRIPCIÓN:
+\"{texto[:1500]}\"
+
+RESPONDE OBLIGATORIAMENTE EN ESTE FORMATO:
+TIPO: [EDUCATIVO / MARKETING o MINIDRAMA / FICCIÓN]
+DESCRIPCIÓN: [Si es educativo: "Aplica la fórmula habitual (dolor, curiosidad, solución, venta)." Si es minidrama: "Extrae el arco dramático (arquetipos de personajes, conflicto, tensión de estatus/venganza/traición, giro inesperado y cliffhanger final), transformando tu nueva idea en un sketch narrativo o minidrama actuado."]
+"""
+    try:
+        res = client.chat.completions.create(
+            model=modelo,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        resp = res.choices[0].message.content.strip()
+        tipo = "EDUCATIVO / MARKETING"
+        desc = "Aplica la fórmula habitual (dolor, curiosidad, solución, venta)."
+        if "MINIDRAMA" in resp.upper():
+            tipo = "MINIDRAMA / FICCIÓN / STORYTELLING"
+            desc = "Extrae el arco dramático (arquetipos de personajes, conflicto, tensión de estatus/venganza/traición, giro inesperado y cliffhanger final), transformando tu nueva idea en un sketch narrativo o minidrama actuado."
+        return tipo, desc
+    except Exception:
+        return "GENERAL / PERSUASIVO", "Aplica la fórmula de retención y ganchos de alto impacto."
+
 def procesar_transcripcion(texto_crudo: str, api_key: str):
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         f_orig = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, False)
         f_trad = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, True)
-        return f_orig.result(), f_trad.result()
+        f_tipo = executor.submit(clasificar_tipo_contenido, texto_crudo, api_key)
+        
+        orig = f_orig.result()
+        trad = f_trad.result()
+        tipo, desc = f_tipo.result()
+        return orig, trad, tipo, desc
 
 def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, duracion: str, api_key: str):
     client = get_groq_client(api_key)
     modelo = obtener_modelo_activo(api_key)
     
-    prompt = f"""Eres un director creativo, guionista de cine/televisión y neuroestratega viral de primer nivel.
+    # REGLAS ESTRICTAS DE CONTEO DE PALABRAS SEGÚN LA DURACIÓN
+    if "15-30s" in duracion:
+        regla_volumen = """
+- REGLA DE DURACIÓN CORTO (15-30 SEGUNDOS):
+  * CONTEO TOTAL OBLIGATORIO EN LA COLUMNA "Qué dice": ENTRE 40 Y 70 PALABRAS TOTALES.
+  * Estructura: Hook relámpago de 10 palabras, 1 solo punto de dolor/escena de 35 palabras, y CTA express de 10 palabras. Frases telegráficas y rápidas.
+"""
+    elif "60-90s" in duracion:
+        regla_volumen = """
+- REGLA DE DURACIÓN LARGO (60-90+ SEGUNDOS):
+  * CONTEO TOTAL OBLIGATORIO EN LA COLUMNA "Qué dice": MÍNIMO 190 PALABRAS, MÁXIMO 260 PALABRAS TOTALES.
+  * OBLIGATORIO EXPANDIR: Debes escribir oraciones largas, detalladas y profundas. Incluye diálogos de ida y vuelta, contexto previo, 3 puntos de desarrollo o giros dramáticos intermedios y explicaciones completas. Si entregas un guion corto, será considerado un fallo.
+"""
+    else:  # Estándar 30-60s
+        regla_volumen = """
+- REGLA DE DURACIÓN ESTÁNDAR (30-60 SEGUNDOS):
+  * CONTEO TOTAL OBLIGATORIO EN LA COLUMNA "Qué dice": ENTRE 100 Y 145 PALABRAS TOTALES.
+  * Estructura: Hook fuerte, 2 bucles de curiosidad, desarrollo con ejemplo y cierre.
+"""
+
+    prompt = f"""Eres un director creativo, guionista y neuroestratega viral de primer nivel.
 Analiza la siguiente TRANSCRIPCIÓN de referencia y aplica sus técnicas a la NUEVA IDEA o HISTORIA del usuario.
 
-REGLA DE DETECCIÓN Y ADAPTACIÓN DE FORMATO:
-- Si la referencia o la idea es CONTENIDO EDUCATIVO / VENTA: Aplica la estructura habitual de gancho, retención, resolución de problema y llamado a la acción comercial.
-- Si la referencia o la idea es un MINIDRAMA / FICCIÓN / STORYTELLING / ESCENA DE PELÍCULA: Extrae el arco dramático (tensión de personajes, conflicto de estatus, traición, venganza, revelación y cliffhanger). Adapta la idea del usuario como un guion narrativo, sketch o minidrama actuado.
+REGLA DE FORMATO:
+- Si la referencia es EDUCATIVA / VENTA: Aplica la estructura habitual de problema, curiosidad, solución y llamado a la acción comercial.
+- Si la referencia es MINIDRAMA / FICCIÓN / HISTORIA: Extrae el arco dramático (tensión de personajes, conflicto de estatus, traición, revelación y cliffhanger). Adapta la idea del usuario como un guion narrativo o sketch de varios diálogos.
 
-DURACIÓN OBJETIVO SELECCIONADA: {duracion}
-- Corto (15-30s): Frases directas, ritmo frenético, un solo punto o micro-escena directa.
-- Estándar (30-60s): Estructura equilibrada con giros claros y cierre persuasivo.
-- Largo (60-90s+): Desarrollo profundo de historia/argumento con múltiples giros.
+{regla_volumen}
 
 TUS TAREAS:
 1. Evalúa el PUNTAJE DE VIRALIDAD (de 0 a 100) explicando los mecanismos psicológicos y gatillos de dopamina.
-2. Escribe 3 GUIONES COMPLETOS adaptados a la nueva idea, ajustados a la DURACIÓN {duracion}.
+2. Escribe 3 GUIONES COMPLETOS adaptados a la nueva idea, cumpliendo ESTRICTAMENTE con el conteo de palabras de la duración ({duracion}).
 
 CADA GUION DEBE ENTREGARSE COMO UNA TABLA MARKDOWN EXACTA DE 3 COLUMNAS:
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 
-- En "Sección": Escribe la fase (ej: Hook/Apertura, Loop de Curiosidad/Conflicto, Desarrollo/Giro dramático, Recompensa/Clímax, Cierre/Cliffhanger).
-- En "Dirección (Qué hacer)": Qué hace el creador o personajes en cámara (acciones, tono de voz, lenguaje corporal, encuadre).
-- En "Qué dice (Guion verbal)": El texto o diálogo EXACTO y LIMPIO que se dice en voz alta.
+- En "Sección": Escribe la fase del guion.
+- En "Dirección (Qué hacer)": Indicaciones de cámara, acciones físicas, tono emocional o encuadre.
+- En "Qué dice (Guion verbal)": El texto hablado exacto que debe alcanzar el volumen de palabras exigido para llenar los {duracion}.
 
 TRANSCRIPCIÓN:
 \"{transcripcion}\"
@@ -270,8 +321,8 @@ Usa estrictamente los delimitadores señalados:
 
 <<<ANALISIS>>>
 ### 📊 Puntaje de Viralidad: [X]/100
-- **Mecanismos Psicológicos y Dramáticos:** (Sesgos, instintos, tensión de estatus o conflicto)
-- **Estructura de Retención:** (Curva de atención y manejo del misterio/cliffhanger)
+- **Mecanismos Psicológicos y Dramáticos:** (Sesgos, instintos o conflicto detectado)
+- **Estructura de Retención:** (Curva de atención y apertura de bucles)
 - **Efectividad del Cierre:** (Estrategia de conversión o remate emocional)
 
 <<<GUION_1>>>
@@ -280,9 +331,9 @@ Usa estrictamente los delimitadores señalados:
 | :--- | :--- | :--- |
 | **Hook** | [Acción visual] | "Texto hablado" |
 | **Conflicto / Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado" |
+| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado extendido para cumplir el tiempo" |
 | **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
-| **Cierre / CTA / Cliffhanger** | [Gesto final] | "Texto hablado" |
+| **Cierre / CTA** | [Gesto final] | "Texto hablado" |
 
 <<<GUION_2>>>
 ### 📌 Opción 2: Enfoque Secreto / Misterio Dramático ({duracion})
@@ -290,9 +341,9 @@ Usa estrictamente los delimitadores señalados:
 | :--- | :--- | :--- |
 | **Hook** | [Acción visual] | "Texto hablado" |
 | **Conflicto / Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado" |
+| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado extendido para cumplir el tiempo" |
 | **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
-| **Cierre / CTA / Cliffhanger** | [Gesto final] | "Texto hablado" |
+| **Cierre / CTA** | [Gesto final] | "Texto hablado" |
 
 <<<GUION_3>>>
 ### 📌 Opción 3: Enfoque Shock / Traición o Quiebre Inesperado ({duracion})
@@ -300,9 +351,9 @@ Usa estrictamente los delimitadores señalados:
 | :--- | :--- | :--- |
 | **Hook** | [Acción visual] | "Texto hablado" |
 | **Conflicto / Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado" |
+| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado extendido para cumplir el tiempo" |
 | **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
-| **Cierre / CTA / Cliffhanger** | [Gesto final] | "Texto hablado" |
+| **Cierre / CTA** | [Gesto final] | "Texto hablado" |
 """
     res = client.chat.completions.create(
         model=modelo,
@@ -350,10 +401,12 @@ with tab_link:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz audible.")
                 else:
-                    with st.spinner("✨ Estructurando párrafos..."):
-                        orig, trad = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
+                    with st.spinner("✨ Analizando tipo de contenido y estructurando..."):
+                        orig, trad, tipo, desc = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
+                        st.session_state.tipo_contenido = tipo
+                        st.session_state.descripcion_contenido = desc
                         st.session_state.res_analisis = None
                         st.session_state.res_g1 = None
                         st.session_state.res_g2 = None
@@ -381,10 +434,12 @@ with tab_file:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz.")
                 else:
-                    with st.spinner("✨ Estructurando párrafos..."):
-                        orig, trad = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
+                    with st.spinner("✨ Analizando tipo de contenido y estructurando..."):
+                        orig, trad, tipo, desc = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
+                        st.session_state.tipo_contenido = tipo
+                        st.session_state.descripcion_contenido = desc
                         st.session_state.res_analisis = None
                         st.session_state.res_g1 = None
                         st.session_state.res_g2 = None
@@ -398,8 +453,12 @@ with tab_file:
 # ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
-    st.subheader("📝 Transcripción del Video")
     
+    # 1. MOSTRAR EL TIPO DE CONTENIDO DETECTADO
+    if st.session_state.tipo_contenido:
+        st.info(f"🏷️ **Tipo de Guion Detectado:** `{st.session_state.tipo_contenido}`\n\n📌 **Estrategia a aplicar:** {st.session_state.descripcion_contenido}")
+
+    st.subheader("📝 Transcripción del Video")
     tab_es, tab_orig = st.tabs(["🇪🇸 Español Latinoamericano", "🌐 Idioma Original"])
     with tab_es:
         boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
@@ -422,7 +481,7 @@ if st.session_state.texto_original:
     )
 
     duracion_opcion = st.radio(
-        "⏱️ Duración deseada de los guiones:",
+        "⏱️ Duración deseada de los guiones (ajusta el volumen real de palabras habladas):",
         ["Corto (15-30s)", "Estándar (30-60s)", "Largo / Storytelling (60-90s+)"],
         index=1,
         horizontal=True
@@ -433,7 +492,7 @@ if st.session_state.texto_original:
             st.warning("Escribe primero tu idea o historia.")
         else:
             base_texto = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner(f"🧠 Decodificando estructura ({duracion_opcion})..."):
+            with st.spinner(f"🧠 Generando guiones con extensión real para {duracion_opcion}..."):
                 try:
                     an, g1, g2, g3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), duracion_opcion, GROQ_API_KEY)
                     st.session_state.res_analisis = an
@@ -447,12 +506,12 @@ if st.session_state.texto_original:
     if st.session_state.res_analisis:
         st.markdown("---")
         
-        # 1. Análisis Psicológico y Puntaje
+        # Análisis Psicológico y Puntaje
         st.subheader("🧠 Análisis Psicológico / Dramático & Puntaje")
         st.info(st.session_state.res_analisis)
 
-        # 2. Los 3 Guiones en 3 Pestañas
-        st.markdown("### 🎬 3 Guiones Adaptados")
+        # 3 Guiones en 3 Pestañas
+        st.markdown(f"### 🎬 3 Guiones Adaptados ({duracion_opcion})")
         tab_g1, tab_g2, tab_g3 = st.tabs([
             "📌 Opción 1 (Dolor / Conflicto)", 
             "📌 Opción 2 (Misterio / Secreto)", 
