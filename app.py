@@ -87,7 +87,7 @@ with st.sidebar:
         st.rerun()
 
 st.title("🧠 Transcriptor & Ingeniería Inversa Viral")
-st.caption("Decodifica la psicología de videos virales y replícala en cualquier producto o servicio.")
+st.caption("Decodifica la psicología de videos virales, películas o minidramas y replícala en cualquier idea.")
 
 def boton_copiar(texto: str, id_btn="copiar"):
     if not texto:
@@ -98,9 +98,9 @@ def boton_copiar(texto: str, id_btn="copiar"):
         background-color: #10b981; color: white; border: none; padding: 6px 14px;
         border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
         display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px;">
-        📋 Copiar
+        📋 Copiar solo lo que se dice
     </button>
-    <span id="msg_{id_btn}" style="margin-left: 10px; color: #10b981; font-weight: bold; font-size: 13px; display: none;">✅ ¡Copiado!</span>
+    <span id="msg_{id_btn}" style="margin-left: 10px; color: #10b981; font-weight: bold; font-size: 13px; display: none;">✅ ¡Guion hablado copiado!</span>
     <script>
     function copiar_{id_btn}() {{
         const text = {texto_json};
@@ -113,6 +113,24 @@ def boton_copiar(texto: str, id_btn="copiar"):
     </script>
     """
     components.html(html_code, height=42)
+
+# Extrae estrictamente la tercera columna de la tabla (lo que se dice)
+def extraer_solo_guion_hablado(texto_markdown: str) -> str:
+    lineas = texto_markdown.strip().split("\n")
+    frases = []
+    for linea in lineas:
+        if "|" in linea:
+            columnas = [col.strip() for col in linea.split("|")]
+            if len(columnas) >= 4:
+                header = columnas[1].lower()
+                if any(h in header for h in ["sección", "seccion", "---", ":---"]) or "---" in columnas[2]:
+                    continue
+                dialogo = columnas[3].strip()
+                if (dialogo.startswith('"') and dialogo.endswith('"')) or (dialogo.startswith("“") and dialogo.endswith("”")):
+                    dialogo = dialogo[1:-1].strip()
+                if dialogo and not dialogo.startswith("---"):
+                    frases.append(dialogo)
+    return "\n\n".join(frases) if frases else texto_markdown
 
 def descargar_tiktok_directo(enlace: str):
     try:
@@ -218,33 +236,33 @@ def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, duracion:
     client = get_groq_client(api_key)
     modelo = obtener_modelo_activo(api_key)
     
-    prompt = f"""Eres un director creativo y neuroestratega viral de primer nivel.
-Analiza la siguiente TRANSCRIPCIÓN de referencia y aplica sus técnicas a la NUEVA IDEA del usuario.
+    prompt = f"""Eres un director creativo, guionista de cine/televisión y neuroestratega viral de primer nivel.
+Analiza la siguiente TRANSCRIPCIÓN de referencia y aplica sus técnicas a la NUEVA IDEA o HISTORIA del usuario.
 
-PARÁMETROS OBLIGATORIOS:
-- DURACIÓN OBJETIVO SELECCIONADA: {duracion}
-  * Si es Corto (15-30s): Frases ultra directas, ritmo acelerado, 1 punto clave y CTA express.
-  * Si es Estándar (30-60s): Estructura equilibrada de Hook, 2 bucles de curiosidad, desarrollo con ejemplo y CTA.
-  * Si es Largo (60-90s+): Estructura profunda de storytelling, contexto, 3 puntos de desarrollo con giros y cierre persuasivo.
+REGLA DE DETECCIÓN Y ADAPTACIÓN DE FORMATO:
+- Si la referencia o la idea es CONTENIDO EDUCATIVO / VENTA: Aplica la estructura habitual de gancho, retención, resolución de problema y llamado a la acción comercial.
+- Si la referencia o la idea es un MINIDRAMA / FICCIÓN / STORYTELLING / ESCENA DE PELÍCULA: Extrae el arco dramático (tensión de personajes, conflicto de estatus, traición, venganza, revelación y cliffhanger). Adapta la idea del usuario como un guion narrativo, sketch o minidrama actuado.
+
+DURACIÓN OBJETIVO SELECCIONADA: {duracion}
+- Corto (15-30s): Frases directas, ritmo frenético, un solo punto o micro-escena directa.
+- Estándar (30-60s): Estructura equilibrada con giros claros y cierre persuasivo.
+- Largo (60-90s+): Desarrollo profundo de historia/argumento con múltiples giros.
 
 TUS TAREAS:
 1. Evalúa el PUNTAJE DE VIRALIDAD (de 0 a 100) explicando los mecanismos psicológicos y gatillos de dopamina.
-2. Escribe 3 GUIONES VIRALES COMPLETOS adaptados a la nueva idea, ajustados a la DURACIÓN {duracion}.
+2. Escribe 3 GUIONES COMPLETOS adaptados a la nueva idea, ajustados a la DURACIÓN {duracion}.
 
 CADA GUION DEBE ENTREGARSE COMO UNA TABLA MARKDOWN EXACTA DE 3 COLUMNAS:
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 
-Filas de la tabla según la duración elegida:
-- Hook
-- Loop de Curiosidad
-- Desarrollo (o Puntos clave / Historia)
-- Recompensa
-- Cierre y CTA
+- En "Sección": Escribe la fase (ej: Hook/Apertura, Loop de Curiosidad/Conflicto, Desarrollo/Giro dramático, Recompensa/Clímax, Cierre/Cliffhanger).
+- En "Dirección (Qué hacer)": Qué hace el creador o personajes en cámara (acciones, tono de voz, lenguaje corporal, encuadre).
+- En "Qué dice (Guion verbal)": El texto o diálogo EXACTO y LIMPIO que se dice en voz alta.
 
 TRANSCRIPCIÓN:
 \"{transcripcion}\"
 
-NUEVA IDEA O PRODUCTO DEL USUARIO:
+NUEVA IDEA O HISTORIA DEL USUARIO:
 \"{idea_usuario}\"
 
 FORMATO DE ENTREGA OBLIGATORIO:
@@ -252,39 +270,39 @@ Usa estrictamente los delimitadores señalados:
 
 <<<ANALISIS>>>
 ### 📊 Puntaje de Viralidad: [X]/100
-- **Mecanismos Psicológicos:** (Sesgos y gatillos detectados)
-- **Estructura de Retención:** (Curva de atención)
-- **Efectividad del Cierre:** (Estrategia de conversión)
+- **Mecanismos Psicológicos y Dramáticos:** (Sesgos, instintos, tensión de estatus o conflicto)
+- **Estructura de Retención:** (Curva de atención y manejo del misterio/cliffhanger)
+- **Efectividad del Cierre:** (Estrategia de conversión o remate emocional)
 
 <<<GUION_1>>>
-### 📌 Guion 1: Enfoque Dolor / Error Oculto ({duracion})
+### 📌 Opción 1: Enfoque Dolor / Conflicto Oculto ({duracion})
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 | :--- | :--- | :--- |
 | **Hook** | [Acción visual] | "Texto hablado" |
-| **Loop de Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo** | [Indicación de cámara] | "Texto hablado" |
-| **Recompensa** | [Revelación] | "Texto hablado" |
-| **Cierre y CTA** | [Gesto final] | "Texto hablado" |
+| **Conflicto / Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado" |
+| **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
+| **Cierre / CTA / Cliffhanger** | [Gesto final] | "Texto hablado" |
 
 <<<GUION_2>>>
-### 📌 Guion 2: Enfoque Curiosidad Extrema / Secreto Revelado ({duracion})
+### 📌 Opción 2: Enfoque Secreto / Misterio Dramático ({duracion})
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 | :--- | :--- | :--- |
 | **Hook** | [Acción visual] | "Texto hablado" |
-| **Loop de Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo** | [Indicación de cámara] | "Texto hablado" |
-| **Recompensa** | [Revelación] | "Texto hablado" |
-| **Cierre y CTA** | [Gesto final] | "Texto hablado" |
+| **Conflicto / Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado" |
+| **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
+| **Cierre / CTA / Cliffhanger** | [Gesto final] | "Texto hablado" |
 
 <<<GUION_3>>>
-### 📌 Guion 3: Enfoque Contraintuitivo / Quiebre de Creencia ({duracion})
+### 📌 Opción 3: Enfoque Shock / Traición o Quiebre Inesperado ({duracion})
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 | :--- | :--- | :--- |
 | **Hook** | [Acción visual] | "Texto hablado" |
-| **Loop de Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo** | [Indicación de cámara] | "Texto hablado" |
-| **Recompensa** | [Revelación] | "Texto hablado" |
-| **Cierre y CTA** | [Gesto final] | "Texto hablado" |
+| **Conflicto / Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo / Giro** | [Indicación de cámara] | "Texto hablado" |
+| **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
+| **Cierre / CTA / Cliffhanger** | [Gesto final] | "Texto hablado" |
 """
     res = client.chat.completions.create(
         model=modelo,
@@ -391,17 +409,20 @@ if st.session_state.texto_original:
         st.text_area("Texto Original", value=st.session_state.texto_original, height=200, label_visibility="collapsed")
 
     st.markdown("---")
-    st.subheader("🔬 Aplicar Ingeniería Inversa a Nueva Idea")
+    st.subheader("🔬 Aplicar Ingeniería Inversa a Nueva Idea o Historia")
     
     idea_input = st.text_area(
-        "Describe tu nueva idea, producto o servicio:",
-        placeholder="Ej: Asesoría de visas, Ropa deportiva personalizada, Clases de oratoria...",
-        height=75
+        "Describe tu idea, producto, servicio o historia a recrear:",
+        placeholder=(
+            "Ejemplos:\n"
+            "• Venta/Educativo: Asesoría de visas, Ropa deportiva personalizada, Clases de oratoria...\n"
+            "• Minidrama/Historia: Un cliente humilla a una cajera sin saber que es la dueña / Vender seguros simulando una traición familiar..."
+        ),
+        height=95
     )
 
-    # SELECTOR DE DURACIÓN
     duracion_opcion = st.radio(
-        "⏱️ Selecciona la duración deseada de los guiones:",
+        "⏱️ Duración deseada de los guiones:",
         ["Corto (15-30s)", "Estándar (30-60s)", "Largo / Storytelling (60-90s+)"],
         index=1,
         horizontal=True
@@ -409,10 +430,10 @@ if st.session_state.texto_original:
 
     if st.button("🚀 Aplicar Ingeniería Inversa", type="primary", use_container_width=True):
         if not idea_input.strip():
-            st.warning("Escribe primero tu idea, producto o servicio.")
+            st.warning("Escribe primero tu idea o historia.")
         else:
             base_texto = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner(f"🧠 Analizando psicología viral y creando guiones ({duracion_opcion})..."):
+            with st.spinner(f"🧠 Decodificando estructura ({duracion_opcion})..."):
                 try:
                     an, g1, g2, g3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), duracion_opcion, GROQ_API_KEY)
                     st.session_state.res_analisis = an
@@ -427,29 +448,31 @@ if st.session_state.texto_original:
         st.markdown("---")
         
         # 1. Análisis Psicológico y Puntaje
-        st.subheader("🧠 Análisis Psicológico & Puntaje de Viralidad")
-        boton_copiar(st.session_state.res_analisis, id_btn="cp_an")
+        st.subheader("🧠 Análisis Psicológico / Dramático & Puntaje")
         st.info(st.session_state.res_analisis)
 
         # 2. Los 3 Guiones en 3 Pestañas
-        st.markdown("### 🎬 3 Guiones Virales Estructurados")
+        st.markdown("### 🎬 3 Guiones Adaptados")
         tab_g1, tab_g2, tab_g3 = st.tabs([
-            "📌 Guion 1: Hook de Dolor", 
-            "📌 Guion 2: Hook de Curiosidad", 
-            "📌 Guion 3: Hook Contraintuitivo"
+            "📌 Opción 1 (Dolor / Conflicto)", 
+            "📌 Opción 2 (Misterio / Secreto)", 
+            "📌 Opción 3 (Shock / Traición)"
         ])
 
         with tab_g1:
             if st.session_state.res_g1:
-                boton_copiar(st.session_state.res_g1, id_btn="cp_g1")
+                solo_hablado_1 = extraer_solo_guion_hablado(st.session_state.res_g1)
+                boton_copiar(solo_hablado_1, id_btn="cp_g1")
                 st.markdown(st.session_state.res_g1)
 
         with tab_g2:
             if st.session_state.res_g2:
-                boton_copiar(st.session_state.res_g2, id_btn="cp_g2")
+                solo_hablado_2 = extraer_solo_guion_hablado(st.session_state.res_g2)
+                boton_copiar(solo_hablado_2, id_btn="cp_g2")
                 st.markdown(st.session_state.res_g2)
 
         with tab_g3:
             if st.session_state.res_g3:
-                boton_copiar(st.session_state.res_g3, id_btn="cp_g3")
+                solo_hablado_3 = extraer_solo_guion_hablado(st.session_state.res_g3)
+                boton_copiar(solo_hablado_3, id_btn="cp_g3")
                 st.markdown(st.session_state.res_g3)
