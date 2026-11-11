@@ -214,29 +214,32 @@ def procesar_transcripcion(texto_crudo: str, api_key: str):
         f_trad = executor.submit(formatear_o_traducir_texto, texto_crudo, api_key, True)
         return f_orig.result(), f_trad.result()
 
-def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, api_key: str):
+def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, duracion: str, api_key: str):
     client = get_groq_client(api_key)
     modelo = obtener_modelo_activo(api_key)
     
     prompt = f"""Eres un director creativo y neuroestratega viral de primer nivel.
 Analiza la siguiente TRANSCRIPCIÓN de referencia y aplica sus técnicas a la NUEVA IDEA del usuario.
 
+PARÁMETROS OBLIGATORIOS:
+- DURACIÓN OBJETIVO SELECCIONADA: {duracion}
+  * Si es Corto (15-30s): Frases ultra directas, ritmo acelerado, 1 punto clave y CTA express.
+  * Si es Estándar (30-60s): Estructura equilibrada de Hook, 2 bucles de curiosidad, desarrollo con ejemplo y CTA.
+  * Si es Largo (60-90s+): Estructura profunda de storytelling, contexto, 3 puntos de desarrollo con giros y cierre persuasivo.
+
 TUS TAREAS:
 1. Evalúa el PUNTAJE DE VIRALIDAD (de 0 a 100) explicando los mecanismos psicológicos y gatillos de dopamina.
-2. Escribe 3 GUIONES VIRALES COMPLETOS adaptados a la nueva idea, cada uno con un enfoque de Hook diferente.
+2. Escribe 3 GUIONES VIRALES COMPLETOS adaptados a la nueva idea, ajustados a la DURACIÓN {duracion}.
 
 CADA GUION DEBE ENTREGARSE COMO UNA TABLA MARKDOWN EXACTA DE 3 COLUMNAS:
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 
-Filas obligatorias en cada tabla:
-- Hook (0-3s)
-- Loop de Curiosidad (3-7s)
-- Desarrollo (7-20s)
-- Recompensa (20-25s)
-- Cierre y CTA (25-30s)
-
-En "Dirección": explica qué debe hacer el usuario con su cuerpo, mirada, encuadre o elementos en pantalla.
-En "Qué dice": escribe el texto exacto, limpio y persuasivo que debe decir el usuario.
+Filas de la tabla según la duración elegida:
+- Hook
+- Loop de Curiosidad
+- Desarrollo (o Puntos clave / Historia)
+- Recompensa
+- Cierre y CTA
 
 TRANSCRIPCIÓN:
 \"{transcripcion}\"
@@ -249,39 +252,39 @@ Usa estrictamente los delimitadores señalados:
 
 <<<ANALISIS>>>
 ### 📊 Puntaje de Viralidad: [X]/100
-- **Mecanismos Psicológicos:** (Sesgos, instintos primarios y gatillos detectados)
-- **Estructura de Retención:** (Curva de atención y apertura de bucles)
+- **Mecanismos Psicológicos:** (Sesgos y gatillos detectados)
+- **Estructura de Retención:** (Curva de atención)
 - **Efectividad del Cierre:** (Estrategia de conversión)
 
 <<<GUION_1>>>
-### 📌 Guion 1: Enfoque Dolor / Error Oculto
+### 📌 Guion 1: Enfoque Dolor / Error Oculto ({duracion})
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 | :--- | :--- | :--- |
-| **Hook (0-3s)** | [Acción visual llamativa] | "Texto hablado" |
-| **Loop de Curiosidad (3-7s)** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo (7-20s)** | [Indicación de cámara/plano] | "Texto hablado" |
-| **Recompensa (20-25s)** | [Demostración/revelación] | "Texto hablado" |
-| **Cierre y CTA (25-30s)** | [Gesto final y llamada a acción] | "Texto hablado" |
+| **Hook** | [Acción visual] | "Texto hablado" |
+| **Loop de Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo** | [Indicación de cámara] | "Texto hablado" |
+| **Recompensa** | [Revelación] | "Texto hablado" |
+| **Cierre y CTA** | [Gesto final] | "Texto hablado" |
 
 <<<GUION_2>>>
-### 📌 Guion 2: Enfoque Curiosidad Extrema / Secreto Revelado
+### 📌 Guion 2: Enfoque Curiosidad Extrema / Secreto Revelado ({duracion})
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 | :--- | :--- | :--- |
-| **Hook (0-3s)** | [Acción visual llamativa] | "Texto hablado" |
-| **Loop de Curiosidad (3-7s)** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo (7-20s)** | [Indicación de cámara/plano] | "Texto hablado" |
-| **Recompensa (20-25s)** | [Demostración/revelación] | "Texto hablado" |
-| **Cierre y CTA (25-30s)** | [Gesto final y llamada a acción] | "Texto hablado" |
+| **Hook** | [Acción visual] | "Texto hablado" |
+| **Loop de Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo** | [Indicación de cámara] | "Texto hablado" |
+| **Recompensa** | [Revelación] | "Texto hablado" |
+| **Cierre y CTA** | [Gesto final] | "Texto hablado" |
 
 <<<GUION_3>>>
-### 📌 Guion 3: Enfoque Contraintuitivo / Quiebre de Creencia
+### 📌 Guion 3: Enfoque Contraintuitivo / Quiebre de Creencia ({duracion})
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
 | :--- | :--- | :--- |
-| **Hook (0-3s)** | [Acción visual llamativa] | "Texto hablado" |
-| **Loop de Curiosidad (3-7s)** | [Lenguaje corporal/acción] | "Texto hablado" |
-| **Desarrollo (7-20s)** | [Indicación de cámara/plano] | "Texto hablado" |
-| **Recompensa (20-25s)** | [Demostración/revelación] | "Texto hablado" |
-| **Cierre y CTA (25-30s)** | [Gesto final y llamada a acción] | "Texto hablado" |
+| **Hook** | [Acción visual] | "Texto hablado" |
+| **Loop de Curiosidad** | [Lenguaje corporal/acción] | "Texto hablado" |
+| **Desarrollo** | [Indicación de cámara] | "Texto hablado" |
+| **Recompensa** | [Revelación] | "Texto hablado" |
+| **Cierre y CTA** | [Gesto final] | "Texto hablado" |
 """
     res = client.chat.completions.create(
         model=modelo,
@@ -396,14 +399,22 @@ if st.session_state.texto_original:
         height=75
     )
 
+    # SELECTOR DE DURACIÓN
+    duracion_opcion = st.radio(
+        "⏱️ Selecciona la duración deseada de los guiones:",
+        ["Corto (15-30s)", "Estándar (30-60s)", "Largo / Storytelling (60-90s+)"],
+        index=1,
+        horizontal=True
+    )
+
     if st.button("🚀 Aplicar Ingeniería Inversa", type="primary", use_container_width=True):
         if not idea_input.strip():
             st.warning("Escribe primero tu idea, producto o servicio.")
         else:
             base_texto = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner("🧠 Analizando psicología viral y creando guiones de 3 columnas..."):
+            with st.spinner(f"🧠 Analizando psicología viral y creando guiones ({duracion_opcion})..."):
                 try:
-                    an, g1, g2, g3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), GROQ_API_KEY)
+                    an, g1, g2, g3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), duracion_opcion, GROQ_API_KEY)
                     st.session_state.res_analisis = an
                     st.session_state.res_g1 = g1
                     st.session_state.res_g2 = g2
@@ -420,7 +431,7 @@ if st.session_state.texto_original:
         boton_copiar(st.session_state.res_analisis, id_btn="cp_an")
         st.info(st.session_state.res_analisis)
 
-        # 2. Los 3 Guiones en 3 Pestañas con sus Tablas de 3 Columnas
+        # 2. Los 3 Guiones en 3 Pestañas
         st.markdown("### 🎬 3 Guiones Virales Estructurados")
         tab_g1, tab_g2, tab_g3 = st.tabs([
             "📌 Guion 1: Hook de Dolor", 
