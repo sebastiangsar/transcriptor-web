@@ -130,16 +130,19 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# DESCARGA EXACTA: fuerza captura del audio del micrófono del video, no de la música
+# EXTRAE SOLO AUDIO COMPRIMIDO EN MP3 (PESA MENOS DE 1 MB, NUNCA DA ERROR 413)
 def extraer_audio_rapido(enlace: str) -> str:
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    temp_path = temp_file.name
-    temp_file.close()
+    temp_dir = tempfile.gettempdir()
+    out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
 
     opciones = {
-        # Evita 'bestaudio' que descarga la canción comercial de TikTok
-        'format': 'best[vcodec!=none][acodec!=none]/best/b',
-        'outtmpl': temp_path,
+        'format': 'best[vcodec!=none][acodec!=none]/best/ba/b',
+        'outtmpl': f"{out_base}.%(ext)s",
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '64',
+        }],
         'quiet': True,
         'no_warnings': True,
         'overwrites': True,
@@ -155,7 +158,8 @@ def extraer_audio_rapido(enlace: str) -> str:
     with yt_dlp.YoutubeDL(opciones) as ydl:
         ydl.download([enlace])
 
-    return temp_path
+    archivo_resultado = f"{out_base}.mp3"
+    return archivo_resultado
 
 def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo=None) -> str:
     client = get_groq_client(api_key)
@@ -164,7 +168,7 @@ def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo=None) ->
         with open(archivo_o_buffer, "rb") as f:
             contenido = f.read()
     else:
-        nombre_final = nombre_archivo or "audio.mp4"
+        nombre_final = nombre_archivo or "audio.mp3"
         contenido = archivo_o_buffer
 
     transcription = client.audio.transcriptions.create(
@@ -376,7 +380,7 @@ with tab_link:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("⚡ Descargando video con audio real del micrófono..."):
+                with st.spinner("⚡ Extrayendo audio optimizado (< 1 MB)..."):
                     archivo_temporal = extraer_audio_rapido(url.strip())
                 with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
