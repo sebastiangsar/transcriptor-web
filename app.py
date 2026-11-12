@@ -131,17 +131,18 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
+# DESCARGA CORREGIDA: captura 'play' (video con voz real) en lugar de 'music'
 def descargar_tiktok_directo(enlace: str):
     try:
         resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=8)
         data = resp.json()
         if data.get("code") == 0 and "data" in data:
-            media_url = data["data"].get("music") or data["data"].get("play")
+            media_url = data["data"].get("play") or data["data"].get("wmplay")
             if media_url:
                 if media_url.startswith("/"):
                     media_url = f"https://www.tikwm.com{media_url}"
-                r = requests.get(media_url, timeout=12)
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+                r = requests.get(media_url, timeout=15)
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                 temp_file.write(r.content)
                 temp_file.close()
                 return temp_file.name
@@ -282,7 +283,7 @@ def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, duracion:
         regla_volumen = """
 - REGLA DE DURACIÓN LARGO (60-90+ SEGUNDOS):
   * CONTEO TOTAL EN "Qué dice": MÍNIMO 190 PALABRAS, MÁXIMO 260 PALABRAS.
-  * OBLIGATORIO: Debes redactar oraciones largas y profundas, con contexto, explicaciones completas, giros y diálogos de ida y vuelta para garantizar que alcance los 60 a 90 segundos.
+  * OBLIGATORIO: Redacta oraciones largas, explicaciones completas, giros y diálogos profundos para llenar los 60 a 90 segundos.
 """
     else:
         regla_volumen = """
@@ -356,7 +357,6 @@ Usa estrictamente los delimitadores señalados:
 | **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
 | **Cierre / CTA** | [Gesto final] | "Texto hablado" |
 """
-    # max_tokens=4096 evita que la respuesta se corte a mitad de camino
     res = client.chat.completions.create(
         model=modelo,
         messages=[{"role": "user", "content": prompt}],
@@ -396,7 +396,7 @@ with tab_link:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("⚡ Descargando audio..."):
+                with st.spinner("⚡ Descargando video y audio real..."):
                     archivo_temporal = extraer_audio_rapido(url.strip())
                 with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
