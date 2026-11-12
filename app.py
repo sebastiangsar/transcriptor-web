@@ -219,7 +219,8 @@ def formatear_o_traducir_texto(texto: str, api_key: str, traducir=False) -> str:
                 {"role": "system", "content": instruccion},
                 {"role": "user", "content": texto}
             ],
-            temperature=0.2
+            temperature=0.2,
+            max_tokens=2048
         )
         return res.choices[0].message.content.strip()
     except Exception:
@@ -243,7 +244,8 @@ DESCRIPCIÓN: [Si es educativo: "Aplica la fórmula habitual (dolor, curiosidad,
         res = client.chat.completions.create(
             model=modelo,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1
+            temperature=0.1,
+            max_tokens=300
         )
         resp = res.choices[0].message.content.strip()
         tipo = "EDUCATIVO / MARKETING"
@@ -270,38 +272,37 @@ def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, duracion:
     client = get_groq_client(api_key)
     modelo = obtener_modelo_activo(api_key)
     
-    # REGLAS ESTRICTAS DE CONTEO DE PALABRAS SEGÚN LA DURACIÓN
     if "15-30s" in duracion:
         regla_volumen = """
 - REGLA DE DURACIÓN CORTO (15-30 SEGUNDOS):
-  * CONTEO TOTAL OBLIGATORIO EN LA COLUMNA "Qué dice": ENTRE 40 Y 70 PALABRAS TOTALES.
-  * Estructura: Hook relámpago de 10 palabras, 1 solo punto de dolor/escena de 35 palabras, y CTA express de 10 palabras. Frases telegráficas y rápidas.
+  * CONTEO TOTAL EN "Qué dice": ENTRE 40 Y 70 PALABRAS.
+  * Estructura: Frases rápidas, directas y telegráficas.
 """
     elif "60-90s" in duracion:
         regla_volumen = """
 - REGLA DE DURACIÓN LARGO (60-90+ SEGUNDOS):
-  * CONTEO TOTAL OBLIGATORIO EN LA COLUMNA "Qué dice": MÍNIMO 190 PALABRAS, MÁXIMO 260 PALABRAS TOTALES.
-  * OBLIGATORIO EXPANDIR: Debes escribir oraciones largas, detalladas y profundas. Incluye diálogos de ida y vuelta, contexto previo, 3 puntos de desarrollo o giros dramáticos intermedios y explicaciones completas. Si entregas un guion corto, será considerado un fallo.
+  * CONTEO TOTAL EN "Qué dice": MÍNIMO 190 PALABRAS, MÁXIMO 260 PALABRAS.
+  * OBLIGATORIO: Debes redactar oraciones largas y profundas, con contexto, explicaciones completas, giros y diálogos de ida y vuelta para garantizar que alcance los 60 a 90 segundos.
 """
-    else:  # Estándar 30-60s
+    else:
         regla_volumen = """
 - REGLA DE DURACIÓN ESTÁNDAR (30-60 SEGUNDOS):
-  * CONTEO TOTAL OBLIGATORIO EN LA COLUMNA "Qué dice": ENTRE 100 Y 145 PALABRAS TOTALES.
-  * Estructura: Hook fuerte, 2 bucles de curiosidad, desarrollo con ejemplo y cierre.
+  * CONTEO TOTAL EN "Qué dice": ENTRE 100 Y 145 PALABRAS.
+  * Estructura: Ritmo equilibrado con ejemplos y desarrollo claro.
 """
 
     prompt = f"""Eres un director creativo, guionista y neuroestratega viral de primer nivel.
-Analiza la siguiente TRANSCRIPCIÓN de referencia y aplica sus técnicas a la NUEVA IDEA o HISTORIA del usuario.
+Analiza la siguiente TRANSCRIPCIÓN y aplica sus técnicas a la NUEVA IDEA o HISTORIA del usuario.
 
 REGLA DE FORMATO:
 - Si la referencia es EDUCATIVA / VENTA: Aplica la estructura habitual de problema, curiosidad, solución y llamado a la acción comercial.
-- Si la referencia es MINIDRAMA / FICCIÓN / HISTORIA: Extrae el arco dramático (tensión de personajes, conflicto de estatus, traición, revelación y cliffhanger). Adapta la idea del usuario como un guion narrativo o sketch de varios diálogos.
+- Si la referencia es MINIDRAMA / FICCIÓN / HISTORIA: Extrae el arco dramático (tensión de personajes, conflicto, traición, revelación y cliffhanger). Adapta la idea del usuario como un guion narrativo o sketch de varios diálogos.
 
 {regla_volumen}
 
 TUS TAREAS:
 1. Evalúa el PUNTAJE DE VIRALIDAD (de 0 a 100) explicando los mecanismos psicológicos y gatillos de dopamina.
-2. Escribe 3 GUIONES COMPLETOS adaptados a la nueva idea, cumpliendo ESTRICTAMENTE con el conteo de palabras de la duración ({duracion}).
+2. Escribe 3 GUIONES COMPLETOS adaptados a la nueva idea, cumpliendo con la duración ({duracion}).
 
 CADA GUION DEBE ENTREGARSE COMO UNA TABLA MARKDOWN EXACTA DE 3 COLUMNAS:
 | Sección | Dirección (Qué hacer) | Qué dice (Guion verbal) |
@@ -355,10 +356,12 @@ Usa estrictamente los delimitadores señalados:
 | **Clímax / Revelación** | [Acción/gesto] | "Texto hablado" |
 | **Cierre / CTA** | [Gesto final] | "Texto hablado" |
 """
+    # max_tokens=4096 evita que la respuesta se corte a mitad de camino
     res = client.chat.completions.create(
         model=modelo,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
+        temperature=0.3,
+        max_tokens=4096
     )
     
     texto_completo = res.choices[0].message.content
@@ -454,7 +457,6 @@ with tab_file:
 if st.session_state.texto_original:
     st.markdown("---")
     
-    # 1. MOSTRAR EL TIPO DE CONTENIDO DETECTADO
     if st.session_state.tipo_contenido:
         st.info(f"🏷️ **Tipo de Guion Detectado:** `{st.session_state.tipo_contenido}`\n\n📌 **Estrategia a aplicar:** {st.session_state.descripcion_contenido}")
 
@@ -492,7 +494,7 @@ if st.session_state.texto_original:
             st.warning("Escribe primero tu idea o historia.")
         else:
             base_texto = st.session_state.texto_traducido or st.session_state.texto_original
-            with st.spinner(f"🧠 Generando guiones con extensión real para {duracion_opcion}..."):
+            with st.spinner(f"🧠 Generando guiones completos sin recortes ({duracion_opcion})..."):
                 try:
                     an, g1, g2, g3 = ejecutar_ingenieria_inversa(base_texto, idea_input.strip(), duracion_opcion, GROQ_API_KEY)
                     st.session_state.res_analisis = an
@@ -506,11 +508,9 @@ if st.session_state.texto_original:
     if st.session_state.res_analisis:
         st.markdown("---")
         
-        # Análisis Psicológico y Puntaje
         st.subheader("🧠 Análisis Psicológico / Dramático & Puntaje")
         st.info(st.session_state.res_analisis)
 
-        # 3 Guiones en 3 Pestañas
         st.markdown(f"### 🎬 3 Guiones Adaptados ({duracion_opcion})")
         tab_g1, tab_g2, tab_g3 = st.tabs([
             "📌 Opción 1 (Dolor / Conflicto)", 
