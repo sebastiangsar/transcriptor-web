@@ -3,7 +3,6 @@ import re
 import json
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-import requests
 import streamlit as st
 import streamlit.components.v1 as components
 import yt_dlp
@@ -131,37 +130,15 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# DESCARGA CORREGIDA: captura 'play' (video con voz real) en lugar de 'music'
-def descargar_tiktok_directo(enlace: str):
-    try:
-        resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace}, timeout=8)
-        data = resp.json()
-        if data.get("code") == 0 and "data" in data:
-            media_url = data["data"].get("play") or data["data"].get("wmplay")
-            if media_url:
-                if media_url.startswith("/"):
-                    media_url = f"https://www.tikwm.com{media_url}"
-                r = requests.get(media_url, timeout=15)
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-                temp_file.write(r.content)
-                temp_file.close()
-                return temp_file.name
-    except Exception:
-        pass
-    return None
-
+# DESCARGA EXACTA: fuerza captura del audio del micrófono del video, no de la música
 def extraer_audio_rapido(enlace: str) -> str:
-    if "tiktok.com" in enlace:
-        tk = descargar_tiktok_directo(enlace)
-        if tk:
-            return tk
-
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".m4a")
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     temp_path = temp_file.name
     temp_file.close()
 
     opciones = {
-        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+        # Evita 'bestaudio' que descarga la canción comercial de TikTok
+        'format': 'best[vcodec!=none][acodec!=none]/best/b',
         'outtmpl': temp_path,
         'quiet': True,
         'no_warnings': True,
@@ -180,19 +157,22 @@ def extraer_audio_rapido(enlace: str) -> str:
 
     return temp_path
 
-def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo="audio.mp3") -> str:
+def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo=None) -> str:
     client = get_groq_client(api_key)
     if isinstance(archivo_o_buffer, str):
+        nombre_final = os.path.basename(archivo_o_buffer)
         with open(archivo_o_buffer, "rb") as f:
             contenido = f.read()
     else:
+        nombre_final = nombre_archivo or "audio.mp4"
         contenido = archivo_o_buffer
 
     transcription = client.audio.transcriptions.create(
-        file=(nombre_archivo, contenido),
+        file=(nombre_final, contenido),
         model="whisper-large-v3-turbo",
         response_format="text",
-        temperature=0.0
+        temperature=0.0,
+        prompt="Transcripción de la voz de la persona hablando en el video sobre negocios, ventas o tecnología."
     )
     return transcription
 
@@ -396,7 +376,7 @@ with tab_link:
         else:
             archivo_temporal = None
             try:
-                with st.spinner("⚡ Descargando video y audio real..."):
+                with st.spinner("⚡ Descargando video con audio real del micrófono..."):
                     archivo_temporal = extraer_audio_rapido(url.strip())
                 with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
                     texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
