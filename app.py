@@ -38,8 +38,8 @@ def obtener_modelo_activo(api_key: str) -> str:
     return "openai/gpt-oss-20b"
 
 claves_estado = [
-    "texto_original", "texto_traducido", "tipo_contenido", "descripcion_tipo",
-    "res_analisis", "res_g1", "res_g2", "res_g3"
+    "texto_original", "texto_traducido", "tipo_contenido", "descripcion_tipo", "rol_sugerido",
+    "orden_agente", "res_analisis", "res_g1", "res_g2", "res_g3"
 ]
 for k in claves_estado:
     if k not in st.session_state:
@@ -86,9 +86,9 @@ with st.sidebar:
         st.rerun()
 
 st.title("🧠 Transcriptor & Ingeniería Inversa Viral")
-st.caption("Decodifica la psicología de videos virales, películas o minidramas y replícala en cualquier idea.")
+st.caption("Decodifica la psicología de videos virales y crea órdenes listas para Agentes IA.")
 
-def boton_copiar(texto: str, id_btn="copiar"):
+def boton_copiar(texto: str, id_btn="copiar", label="📋 Copiar solo lo que se dice", confirm="✅ ¡Copiado!"):
     if not texto:
         return
     texto_json = json.dumps(texto)
@@ -97,9 +97,9 @@ def boton_copiar(texto: str, id_btn="copiar"):
         background-color: #10b981; color: white; border: none; padding: 6px 14px;
         border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
         display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px;">
-        📋 Copiar solo lo que se dice
+        {label}
     </button>
-    <span id="msg_{id_btn}" style="margin-left: 10px; color: #10b981; font-weight: bold; font-size: 13px; display: none;">✅ ¡Guion hablado copiado!</span>
+    <span id="msg_{id_btn}" style="margin-left: 10px; color: #10b981; font-weight: bold; font-size: 13px; display: none;">{confirm}</span>
     <script>
     function copiar_{id_btn}() {{
         const text = {texto_json};
@@ -130,7 +130,6 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# EXTRAE SOLO AUDIO COMPRIMIDO EN MP3 (PESA MENOS DE 1 MB, NUNCA DA ERROR 413)
 def extraer_audio_rapido(enlace: str) -> str:
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
@@ -158,8 +157,7 @@ def extraer_audio_rapido(enlace: str) -> str:
     with yt_dlp.YoutubeDL(opciones) as ydl:
         ydl.download([enlace])
 
-    archivo_resultado = f"{out_base}.mp3"
-    return archivo_resultado
+    return f"{out_base}.mp3"
 
 def transcribir_con_groq(archivo_o_buffer, api_key: str, nombre_archivo=None) -> str:
     client = get_groq_client(api_key)
@@ -235,12 +233,14 @@ DESCRIPCIÓN: [Si es educativo: "Aplica la fórmula habitual (dolor, curiosidad,
         resp = res.choices[0].message.content.strip()
         tipo = "EDUCATIVO / MARKETING"
         desc = "Aplica la fórmula habitual (dolor, curiosidad, solución, venta)."
+        rol = "Copywriter de Respuesta Directa y Neuroestratega Viral"
         if "MINIDRAMA" in resp.upper():
             tipo = "MINIDRAMA / FICCIÓN / STORYTELLING"
             desc = "Extrae el arco dramático (arquetipos de personajes, conflicto, tensión de estatus/venganza/traición, giro inesperado y cliffhanger final), transformando tu nueva idea en un sketch narrativo o minidrama actuado."
-        return tipo, desc
+            rol = "Guionista de Ficción, Cine y Tensión Dramática"
+        return tipo, desc, rol
     except Exception:
-        return "GENERAL / PERSUASIVO", "Aplica la fórmula de retención y ganchos de alto impacto."
+        return "GENERAL / PERSUASIVO", "Aplica la fórmula de retención y ganchos de alto impacto.", "Estratega de Contenido Viral"
 
 def procesar_transcripcion(texto_crudo: str, api_key: str):
     with ThreadPoolExecutor(max_workers=3) as executor:
@@ -250,8 +250,43 @@ def procesar_transcripcion(texto_crudo: str, api_key: str):
         
         orig = f_orig.result()
         trad = f_trad.result()
-        tipo, desc = f_tipo.result()
-        return orig, trad, tipo, desc
+        tipo, desc, rol = f_tipo.result()
+        return orig, trad, tipo, desc, rol
+
+# GENERADOR DE PROMPT RTCE PARA AGENTES IA (n8n, ChatGPT, Claude)
+def generar_orden_agente_ia(transcripcion: str, tipo_contenido: str, rol_elegido: str, api_key: str) -> str:
+    client = get_groq_client(api_key)
+    modelo = obtener_modelo_activo(api_key)
+    
+    prompt = f"""Eres un ingeniero de prompts senior especializado en agentes autónomos de IA y flujos como n8n y LangChain.
+Convierte la siguiente TRANSCRIPCIÓN analizada en un MEGA-PROMPT / ORDEN DE SISTEMA altamente específica bajo el estándar RTCE.
+
+PARÁMETROS DE ENTRADA:
+- ROL ASIGNADO AL AGENTE: {rol_elegido}
+- TIPO DE CONTENIDO: {tipo_contenido}
+- TRANSCRIPCIÓN DE REFERENCIA:
+\"{transcripcion}\"
+
+TU MISIÓN: Redactar la orden de sistema completa que se le dará a un agente IA para que clone esta fórmula en cualquier nuevo producto o idea.
+La orden generada debe contener:
+1. Rol e Identidad exacta del Agente.
+2. Desglose de la Fórmula Detectada (tipo de hook 0-3s, gatillos de dopamina, curva de retención, técnica de cierre).
+3. Parámetros y Variables de Entrada requeridos: [PRODUCTO_O_IDEA], [PÚBLICO_OBJETIVO], [DURACIÓN].
+4. Reglas Negativas y Restricciones estrictas (lo que tiene terminantemente prohibido hacer).
+5. Estructura de Salida Obligatoria (formato de entrega sin divagaciones).
+
+Devuelve ÚNICAMENTE la orden lista para copiar y pegar."""
+
+    try:
+        res = client.chat.completions.create(
+            model=modelo,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2500
+        )
+        return res.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error generando la orden: {e}"
 
 def ejecutar_ingenieria_inversa(transcripcion: str, idea_usuario: str, duracion: str, api_key: str):
     client = get_groq_client(api_key)
@@ -388,12 +423,14 @@ with tab_link:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz audible.")
                 else:
-                    with st.spinner("✨ Analizando tipo de contenido y estructurando..."):
-                        orig, trad, tipo, desc = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
+                    with st.spinner("✨ Analizando contenido, clasificando y estructurando..."):
+                        orig, trad, tipo, desc, rol = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
                         st.session_state.tipo_contenido = tipo
                         st.session_state.descripcion_contenido = desc
+                        st.session_state.rol_sugerido = rol
+                        st.session_state.orden_agente = None
                         st.session_state.res_analisis = None
                         st.session_state.res_g1 = None
                         st.session_state.res_g2 = None
@@ -421,12 +458,14 @@ with tab_file:
                 if not texto_crudo.strip():
                     st.warning("No se detectó voz.")
                 else:
-                    with st.spinner("✨ Analizando tipo de contenido y estructurando..."):
-                        orig, trad, tipo, desc = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
+                    with st.spinner("✨ Analizando contenido, clasificando y estructurando..."):
+                        orig, trad, tipo, desc, rol = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
                         st.session_state.texto_original = orig
                         st.session_state.texto_traducido = trad
                         st.session_state.tipo_contenido = tipo
                         st.session_state.descripcion_contenido = desc
+                        st.session_state.rol_sugerido = rol
+                        st.session_state.orden_agente = None
                         st.session_state.res_analisis = None
                         st.session_state.res_g1 = None
                         st.session_state.res_g2 = None
@@ -436,7 +475,7 @@ with tab_file:
                 st.error(f"Error: {e}")
 
 # ==============================================================
-# SALIDA: TRANSCRIPCIONES + INGENIERÍA INVERSA
+# SALIDA
 # ==============================================================
 if st.session_state.texto_original:
     st.markdown("---")
@@ -447,12 +486,48 @@ if st.session_state.texto_original:
     st.subheader("📝 Transcripción del Video")
     tab_es, tab_orig = st.tabs(["🇪🇸 Español Latinoamericano", "🌐 Idioma Original"])
     with tab_es:
-        boton_copiar(st.session_state.texto_traducido, id_btn="cp_es")
+        boton_copiar(st.session_state.texto_traducido, id_btn="cp_es", label="📋 Copiar Transcripción")
         st.text_area("Texto en Español", value=st.session_state.texto_traducido, height=200, label_visibility="collapsed")
     with tab_orig:
-        boton_copiar(st.session_state.texto_original, id_btn="cp_orig")
+        boton_copiar(st.session_state.texto_original, id_btn="cp_orig", label="📋 Copiar Transcripción")
         st.text_area("Texto Original", value=st.session_state.texto_original, height=200, label_visibility="collapsed")
 
+    # ==============================================================
+    # SECCIÓN: ORDEN PARA AGENTE IA (RTCE)
+    # ==============================================================
+    st.markdown("---")
+    st.subheader("🤖 Generar Orden para Agente IA (n8n / ChatGPT / Claude)")
+    st.caption("Crea una orden de sistema altamente específica con la fórmula de este video para automatizaciones.")
+
+    col_rol, col_btn_orden = st.columns([3, 1])
+    with col_rol:
+        rol_usuario = st.text_input(
+            "Rol del Agente (Auto-detectado, puedes editarlo):",
+            value=st.session_state.rol_sugerido or "Copywriter de Respuesta Directa y Neuroestratega Viral"
+        )
+    with col_btn_orden:
+        st.write("")
+        st.write("")
+        btn_crear_orden = st.button("⚡ Crear Orden IA", type="secondary", use_container_width=True)
+
+    if btn_crear_orden:
+        texto_ref = st.session_state.texto_traducido or st.session_state.texto_original
+        with st.spinner("🤖 Diseñando orden estructurada para Agente IA..."):
+            orden_generada = generar_orden_agente_ia(
+                texto_ref, 
+                st.session_state.tipo_contenido or "GENERAL", 
+                rol_usuario.strip(), 
+                GROQ_API_KEY
+            )
+            st.session_state.orden_agente = orden_generada
+
+    if st.session_state.orden_agente:
+        boton_copiar(st.session_state.orden_agente, id_btn="cp_orden", label="📋 Copiar Orden para Agente IA", confirm="✅ ¡Orden copiada!")
+        st.text_area("Orden para el Agente:", value=st.session_state.orden_agente, height=250, label_visibility="collapsed")
+
+    # ==============================================================
+    # SECCIÓN: INGENIERÍA INVERSA A NUEVA IDEA
+    # ==============================================================
     st.markdown("---")
     st.subheader("🔬 Aplicar Ingeniería Inversa a Nueva Idea o Historia")
     
@@ -488,7 +563,6 @@ if st.session_state.texto_original:
                 except Exception as e:
                     st.error(f"Error procesando la ingeniería inversa: {e}")
 
-    # RESULTADOS ORDENADOS
     if st.session_state.res_analisis:
         st.markdown("---")
         
