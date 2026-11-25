@@ -53,7 +53,7 @@ except Exception:
     GROQ_API_KEY = ""
 
 def buscar_archivo_cookies():
-    for n in ["cookies.txt", "cookies.txt.txt", "instagram.com_cookies.txt"]:
+    for n in ["cookies.txt", "cookies.txt.txt", "instagram.com_cookies.txt", "youtube.com_cookies.txt"]:
         if os.path.isfile(n):
             return n
     return None
@@ -130,7 +130,7 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# FUNCIÓN CORREGIDA: Aísla cookies de Instagram y usa clientes compatibles con YouTube Shorts
+# FUNCIÓN CORREGIDA: BYPASS DE BOT EN YOUTUBE SHORTS (TV EMBEDDED + SOPORTE DE COOKIES)
 def extraer_audio_rapido(enlace: str) -> str:
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
@@ -147,16 +147,15 @@ def extraer_audio_rapido(enlace: str) -> str:
         'no_warnings': True,
         'overwrites': True,
         'nocheckcertificate': True,
+        # tv_embedded y android_vr no activan el bloqueo de bots en servidores
         'extractor_args': {
-            'youtube': {'player_client': ['ios', 'web_safari', 'web_embedded']}
+            'youtube': {'player_client': ['tv_embedded', 'android_vr']}
         }
     }
 
-    # Solo enviar cookies si el enlace es de Instagram para no corromper la petición de YouTube
-    if "instagram.com" in enlace:
-        cookies_file = buscar_archivo_cookies()
-        if cookies_file:
-            opciones['cookiefile'] = cookies_file
+    cookies_file = buscar_archivo_cookies()
+    if cookies_file:
+        opciones['cookiefile'] = cookies_file
 
     with yt_dlp.YoutubeDL(opciones) as ydl:
         ydl.download([enlace])
