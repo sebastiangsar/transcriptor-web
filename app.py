@@ -3,6 +3,7 @@ import re
 import json
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+import requests
 import streamlit as st
 import streamlit.components.v1 as components
 import yt_dlp
@@ -130,15 +131,114 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# FUNCIÓN CORREGIDA: Descarga directa de audio con cliente Android (elimina error 403 en YouTube)
+# EXTRACCIÓN DIRECTA DE SUBTÍTULOS / TRANSCRIPCIÓN OFICIAL (0% ERROR 403)
+def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
+    try:
+        opciones = {
+            'skip_download': True,
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+        }
+        if cookies_file:
+            opciones['cookiefile'] = cookies_file
+
+        with yt_dlp.YoutubeDL(opciones) as ydl:
+            info = ydl.extract_info(enlace, download=False)
+
+        if not info:
+            return None
+
+        subs = info.get('subtitles') or {}
+        auto_subs = info.get('automatic_captions') or {}
+        prioridad_idiomas = ['es', 'es-419', 'es-ES', 'es-US', 'en']
+
+        sub_tracks = None
+        for lang in prioridad_idiomas:
+            for k in subs:
+                if k.lower().startswith(lang):
+                    sub_tracks = subs[k]
+                    break
+            if sub_tracks:
+                break
+
+        if not sub_tracks:
+            for lang in prioridad_idiomas:
+                for k in auto_subs:
+                    if k.lower().startswith(lang):
+                        sub_tracks = auto_subs[k]
+                        break
+                if sub_tracks:
+                    break
+
+        if not sub_tracks:
+            if subs:
+                sub_tracks = list(subs.values())[0]
+            elif auto_subs:
+                sub_tracks = list(auto_subs.values())[0]
+
+        if not sub_tracks:
+            return None
+
+        sub_url = None
+        for track in sub_tracks:
+            if track.get('ext') == 'json3':
+                sub_url = track.get('url')
+                break
+        if not sub_url:
+            for track in sub_tracks:
+                if track.get('ext') in ['vtt', 'srv1', 'srv2', 'srv3']:
+                    sub_url = track.get('url')
+                    break
+        if not sub_url and sub_tracks:
+            sub_url = sub_tracks[0].get('url')
+
+        if not sub_url:
+            return None
+
+        r = requests.get(sub_url, timeout=10)
+        if r.status_code != 200:
+            return None
+
+        # Parseo formato json3
+        try:
+            data = r.json()
+            partes = []
+            for ev in data.get('events', []):
+                for seg in ev.get('segs', []):
+                    t = seg.get('utf8', '')
+                    if t and t != '\n':
+                        partes.append(t)
+            if partes:
+                texto_unido = "".join(partes)
+                return re.sub(r'\s+', ' ', texto_unido).strip()
+        except Exception:
+            pass
+
+        # Parseo formato VTT / XML
+        texto_crudo = r.text
+        texto_limpio = re.sub(r'<[^>]+>', '', texto_crudo)
+        texto_limpio = re.sub(r'\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3}\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3}', '', texto_limpio)
+        texto_limpio = re.sub(r'WEBVTT|Kind:.*|Language:.*', '', texto_limpio, flags=re.IGNORECASE)
+        lineas = [l.strip() for l in texto_limpio.splitlines() if l.strip()]
+        
+        dedup = []
+        for l in lineas:
+            if not dedup or dedup[-1] != l:
+                dedup.append(l)
+
+        return ' '.join(dedup).strip() if dedup else None
+    except Exception:
+        return None
+
+# DESCARGA DE AUDIO (Para TikTok, Instagram o videos de YouTube sin subtítulos)
 def extraer_audio_rapido(enlace: str) -> str:
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
     es_youtube = any(y in enlace.lower() for y in ["youtube.com", "youtu.be"])
 
     opciones = {
-        # Para YouTube pide solo el audio nativo; para TikTok/Instagram descarga el stream con voz
-        'format': 'ba/b' if es_youtube else 'best[vcodec!=none][acodec!=none]/best/ba/b',
+        'format': 'ba[protocol=m3u8]/ba/b' if es_youtube else 'best[vcodec!=none][acodec!=none]/best/ba/b',
         'outtmpl': f"{out_base}.%(ext)s",
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -151,10 +251,9 @@ def extraer_audio_rapido(enlace: str) -> str:
         'nocheckcertificate': True,
     }
 
-    # El cliente android en YouTube entrega el audio directo vía CDN sin disparar el error 403
     if es_youtube:
         opciones['extractor_args'] = {
-            'youtube': {'player_client': ['android']}
+            'youtube': {'player_client': ['web_embedded', 'android', 'ios']}
         }
 
     cookies_file = buscar_archivo_cookies()
@@ -420,14 +519,25 @@ with tab_link:
             st.warning("Pega un enlace válido.")
         else:
             archivo_temporal = None
-            try:
-                with st.spinner("⚡ Extrayendo audio optimizado (< 1 MB)..."):
-                    archivo_temporal = extraer_audio_rapido(url.strip())
-                with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
-                    texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
+            texto_crudo = None
+            url_limpia = url.strip()
+            cookies_file = buscar_archivo_cookies()
 
-                if not texto_crudo.strip():
-                    st.warning("No se detectó voz audible.")
+            try:
+                # 1. Si es YouTube, extraer transcripción oficial directa (Sin descargas binarias, Cero 403)
+                if any(y in url_limpia.lower() for y in ["youtube.com", "youtu.be"]):
+                    with st.spinner("⚡ Extrayendo transcripción oficial de YouTube..."):
+                        texto_crudo = obtener_subtitulos_youtube(url_limpia, cookies_file)
+
+                # 2. Si no es YouTube o no tenía subtítulos, descargar audio y usar Groq Whisper
+                if not texto_crudo:
+                    with st.spinner("⚡ Descargando audio del video..."):
+                        archivo_temporal = extraer_audio_rapido(url_limpia)
+                    with st.spinner("🎙️ Transcribiendo con Whisper Turbo..."):
+                        texto_crudo = transcribir_con_groq(archivo_temporal, GROQ_API_KEY)
+
+                if not texto_crudo or not texto_crudo.strip():
+                    st.warning("No se detectó voz audible en el video.")
                 else:
                     with st.spinner("✨ Analizando contenido, clasificando y estructurando..."):
                         orig, trad, tipo, desc, rol = procesar_transcripcion(texto_crudo, GROQ_API_KEY)
