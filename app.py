@@ -130,7 +130,7 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# FUNCIÓN CORREGIDA CON BYPASS DE ERROR 403 EN YOUTUBE
+# FUNCIÓN CORREGIDA: Aísla cookies de Instagram y usa clientes compatibles con YouTube Shorts
 def extraer_audio_rapido(enlace: str) -> str:
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
@@ -147,15 +147,16 @@ def extraer_audio_rapido(enlace: str) -> str:
         'no_warnings': True,
         'overwrites': True,
         'nocheckcertificate': True,
-        # 'tv' y 'mweb' evitan la restricción 403 Forbidden de YouTube
         'extractor_args': {
-            'youtube': {'player_client': ['tv', 'mweb']}
+            'youtube': {'player_client': ['ios', 'web_safari', 'web_embedded']}
         }
     }
 
-    cookies_file = buscar_archivo_cookies()
-    if cookies_file:
-        opciones['cookiefile'] = cookies_file
+    # Solo enviar cookies si el enlace es de Instagram para no corromper la petición de YouTube
+    if "instagram.com" in enlace:
+        cookies_file = buscar_archivo_cookies()
+        if cookies_file:
+            opciones['cookiefile'] = cookies_file
 
     with yt_dlp.YoutubeDL(opciones) as ydl:
         ydl.download([enlace])
