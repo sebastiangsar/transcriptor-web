@@ -130,13 +130,15 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# FUNCIÓN CORREGIDA: BYPASS DE BOT EN YOUTUBE SHORTS (TV EMBEDDED + SOPORTE DE COOKIES)
+# FUNCIÓN CORREGIDA: Descarga directa de audio con cliente Android (elimina error 403 en YouTube)
 def extraer_audio_rapido(enlace: str) -> str:
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
+    es_youtube = any(y in enlace.lower() for y in ["youtube.com", "youtu.be"])
 
     opciones = {
-        'format': 'best[vcodec!=none][acodec!=none]/best/ba/b',
+        # Para YouTube pide solo el audio nativo; para TikTok/Instagram descarga el stream con voz
+        'format': 'ba/b' if es_youtube else 'best[vcodec!=none][acodec!=none]/best/ba/b',
         'outtmpl': f"{out_base}.%(ext)s",
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -147,11 +149,13 @@ def extraer_audio_rapido(enlace: str) -> str:
         'no_warnings': True,
         'overwrites': True,
         'nocheckcertificate': True,
-        # tv_embedded y android_vr no activan el bloqueo de bots en servidores
-        'extractor_args': {
-            'youtube': {'player_client': ['tv_embedded', 'android_vr']}
-        }
     }
+
+    # El cliente android en YouTube entrega el audio directo vía CDN sin disparar el error 403
+    if es_youtube:
+        opciones['extractor_args'] = {
+            'youtube': {'player_client': ['android']}
+        }
 
     cookies_file = buscar_archivo_cookies()
     if cookies_file:
