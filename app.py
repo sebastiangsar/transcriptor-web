@@ -130,6 +130,7 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
+# FUNCIÓN CORREGIDA CON BYPASS DE ERROR 403 EN YOUTUBE
 def extraer_audio_rapido(enlace: str) -> str:
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
@@ -145,8 +146,10 @@ def extraer_audio_rapido(enlace: str) -> str:
         'quiet': True,
         'no_warnings': True,
         'overwrites': True,
+        'nocheckcertificate': True,
+        # 'tv' y 'mweb' evitan la restricción 403 Forbidden de YouTube
         'extractor_args': {
-            'youtube': {'player_client': ['android', 'web']}
+            'youtube': {'player_client': ['tv', 'mweb']}
         }
     }
 
@@ -253,7 +256,6 @@ def procesar_transcripcion(texto_crudo: str, api_key: str):
         tipo, desc, rol = f_tipo.result()
         return orig, trad, tipo, desc, rol
 
-# GENERADOR DE PROMPT RTCE PARA AGENTES IA (n8n, ChatGPT, Claude)
 def generar_orden_agente_ia(transcripcion: str, tipo_contenido: str, rol_elegido: str, api_key: str) -> str:
     client = get_groq_client(api_key)
     modelo = obtener_modelo_activo(api_key)
@@ -492,9 +494,7 @@ if st.session_state.texto_original:
         boton_copiar(st.session_state.texto_original, id_btn="cp_orig", label="📋 Copiar Transcripción")
         st.text_area("Texto Original", value=st.session_state.texto_original, height=200, label_visibility="collapsed")
 
-    # ==============================================================
-    # SECCIÓN: ORDEN PARA AGENTE IA (RTCE)
-    # ==============================================================
+    # SECCIÓN: ORDEN PARA AGENTE IA
     st.markdown("---")
     st.subheader("🤖 Generar Orden para Agente IA (n8n / ChatGPT / Claude)")
     st.caption("Crea una orden de sistema altamente específica con la fórmula de este video para automatizaciones.")
@@ -525,9 +525,7 @@ if st.session_state.texto_original:
         boton_copiar(st.session_state.orden_agente, id_btn="cp_orden", label="📋 Copiar Orden para Agente IA", confirm="✅ ¡Orden copiada!")
         st.text_area("Orden para el Agente:", value=st.session_state.orden_agente, height=250, label_visibility="collapsed")
 
-    # ==============================================================
-    # SECCIÓN: INGENIERÍA INVERSA A NUEVA IDEA
-    # ==============================================================
+    # SECCIÓN: INGENIERÍA INVERSA
     st.markdown("---")
     st.subheader("🔬 Aplicar Ingeniería Inversa a Nueva Idea o Historia")
     
