@@ -131,7 +131,51 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# EXTRACCIÓN DIRECTA DE SUBTÍTULOS / TRANSCRIPCIÓN OFICIAL (0% ERROR 403)
+# BYPASS DE TIKTOK: Evita el error 10240 usando resolvers especializados para enlaces cortos (vt.tiktok)
+def descargar_tiktok_directo(enlace: str) -> str:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    
+    # 1. Resolver primario con TikWM
+    try:
+        resp = requests.post("https://www.tikwm.com/api/", data={"url": enlace, "hd": 1}, headers=headers, timeout=12)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("code") == 0 and "data" in data:
+                media_url = data["data"].get("play") or data["data"].get("wmplay") or data["data"].get("music")
+                if media_url:
+                    if media_url.startswith("/"):
+                        media_url = f"https://www.tikwm.com{media_url}"
+                    r_media = requests.get(media_url, headers=headers, timeout=20)
+                    if r_media.status_code == 200 and len(r_media.content) > 1000:
+                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        temp_file.write(r_media.content)
+                        temp_file.close()
+                        return temp_file.name
+    except Exception:
+        pass
+
+    # 2. Resolver secundario con Tiklydown
+    try:
+        url_enc = requests.utils.quote(enlace, safe="")
+        resp2 = requests.get(f"https://api.tiklydown.eu.org/api/download?url={url_enc}", timeout=10)
+        if resp2.status_code == 200:
+            data2 = resp2.json()
+            video_url = data2.get("video", {}).get("noWatermark") or data2.get("music", {}).get("play_url")
+            if video_url:
+                r2 = requests.get(video_url, timeout=20)
+                if r2.status_code == 200 and len(r2.content) > 1000:
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                    temp_file.write(r2.content)
+                    temp_file.close()
+                    return temp_file.name
+    except Exception:
+        pass
+
+    return None
+
+# EXTRACCIÓN OFICIAL DE SUBTÍTULOS DE YOUTUBE (0% ERROR 403)
 def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
     try:
         opciones = {
@@ -200,7 +244,6 @@ def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
         if r.status_code != 200:
             return None
 
-        # Parseo formato json3
         try:
             data = r.json()
             partes = []
@@ -215,7 +258,6 @@ def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
         except Exception:
             pass
 
-        # Parseo formato VTT / XML
         texto_crudo = r.text
         texto_limpio = re.sub(r'<[^>]+>', '', texto_crudo)
         texto_limpio = re.sub(r'\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3}\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3}', '', texto_limpio)
@@ -231,8 +273,14 @@ def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
     except Exception:
         return None
 
-# DESCARGA DE AUDIO (Para TikTok, Instagram o videos de YouTube sin subtítulos)
+# DESCARGA DE AUDIO (Fallback general para Instagram y videos sin subtítulos)
 def extraer_audio_rapido(enlace: str) -> str:
+    # Si es TikTok, usar los resolvers primero para saltar el error 10240
+    if any(t in enlace.lower() for t in ["tiktok.com", "vt.tiktok", "vm.tiktok"]):
+        tk_file = descargar_tiktok_directo(enlace)
+        if tk_file and os.path.exists(tk_file):
+            return tk_file
+
     temp_dir = tempfile.gettempdir()
     out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
     es_youtube = any(y in enlace.lower() for y in ["youtube.com", "youtu.be"])
