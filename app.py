@@ -131,49 +131,122 @@ def extraer_solo_guion_hablado(texto_markdown: str) -> str:
                     frases.append(dialogo)
     return "\n\n".join(frases) if frases else texto_markdown
 
-# DESCARGA LIMPIA TIKTOK (Elimina el bloqueo 10240)
+# DESCARGA TIKTOK CON EXPANSIÓN DE ENLACE Y 4 PROVEEDORES INDEPENDIENTES
 def descargar_tiktok_directo(enlace: str) -> str:
-    headers_limpios = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    url_limpia = enlace.strip()
+    url_expandida = url_limpia
+
+    # 1. Expandir enlace corto (vt.tiktok / vm.tiktok) simulando Mobile Safari
+    try:
+        headers_mobile = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+        }
+        resp_head = requests.head(url_limpia, headers=headers_mobile, allow_redirects=True, timeout=6)
+        if resp_head.url and "video/" in resp_head.url:
+            url_expandida = resp_head.url.split("?")[0]
+        elif resp_head.url:
+            url_expandida = resp_head.url
+    except Exception:
+        pass
+
+    candidatos = [url_expandida, url_limpia]
+    m_id = re.search(r"(\d{18,20})", url_expandida) or re.search(r"(\d{18,20})", url_limpia)
+    if m_id:
+        candidatos.append(f"https://www.tiktok.com/@i/video/{m_id.group(1)}")
+        candidatos.append(m_id.group(1))
+
+    urls_a_probar = list(dict.fromkeys(candidatos))
+    headers_browser = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*"
     }
 
-    url_limpia = enlace.strip()
-    apis = [
-        # 1. TikWM POST (Directo)
-        ("https://www.tikwm.com/api/", "POST", {"url": url_limpia, "hd": 1}, lambda d: d.get("data", {}).get("play") or d.get("data", {}).get("wmplay") or d.get("data", {}).get("music")),
-        # 2. Tiklydown API
-        (f"https://api.tiklydown.eu.org/api/download?url={requests.utils.quote(url_limpia, safe='')}", "GET", None, lambda d: d.get("video", {}).get("noWatermark") or d.get("music", {}).get("play_url")),
-        # 3. TikWM GET (Fallback)
-        (f"https://tikwm.com/api/?url={requests.utils.quote(url_limpia, safe='')}&hd=1", "GET", None, lambda d: d.get("data", {}).get("play") or d.get("data", {}).get("wmplay") or d.get("data", {}).get("music"))
-    ]
-
-    for endpoint, method, payload, extractor in apis:
+    for u in urls_a_probar:
+        # Proveedor 1: TikWM API
         try:
-            if method == "POST":
-                res = requests.post(endpoint, data=payload, headers=headers_limpios, timeout=12)
-            else:
-                res = requests.get(endpoint, headers=headers_limpios, timeout=12)
-
-            if res.status_code == 200:
-                data = res.json()
-                media_url = extractor(data)
-                if media_url:
-                    if media_url.startswith("/"):
-                        media_url = f"https://www.tikwm.com{media_url}"
-                    r_media = requests.get(media_url, headers=headers_limpios, timeout=25, stream=True)
-                    if r_media.status_code == 200:
-                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-                        for chunk in r_media.iter_content(chunk_size=65536):
-                            temp_file.write(chunk)
-                        temp_file.close()
-                        if os.path.getsize(temp_file.name) > 5000:
-                            return temp_file.name
+            r_tik = requests.post("https://www.tikwm.com/api/", data={"url": u, "hd": 1}, headers=headers_browser, timeout=8)
+            if r_tik.status_code == 200:
+                d = r_tik.json()
+                if d.get("code") == 0 and "data" in d:
+                    m_url = d["data"].get("play") or d["data"].get("wmplay") or d["data"].get("music")
+                    if m_url:
+                        if m_url.startswith("/"):
+                            m_url = f"https://www.tikwm.com{m_url}"
+                        r_down = requests.get(m_url, headers=headers_browser, timeout=20, stream=True)
+                        if r_down.status_code == 200:
+                            t_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                            for chk in r_down.iter_content(chunk_size=65536):
+                                t_file.write(chk)
+                            t_file.close()
+                            if os.path.getsize(t_file.name) > 5000:
+                                return t_file.name
         except Exception:
-            continue
+            pass
+
+        # Proveedor 2: Cloudflare Worker TDown (Servidor externo a AWS)
+        try:
+            r_cf = requests.get(f"https://tdownv4.sl-bjs.workers.dev/?down={requests.utils.quote(u, safe='')}", timeout=8)
+            if r_cf.status_code == 200:
+                d_cf = r_cf.json()
+                m_url = d_cf.get("download_url") or d_cf.get("author", {}).get("audio_url")
+                if m_url:
+                    r_down = requests.get(m_url, headers=headers_browser, timeout=20, stream=True)
+                    if r_down.status_code == 200:
+                        t_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        for chk in r_down.iter_content(chunk_size=65536):
+                            t_file.write(chk)
+                        t_file.close()
+                        if os.path.getsize(t_file.name) > 5000:
+                            return t_file.name
+        except Exception:
+            pass
+
+        # Proveedor 3: Tiklydown API
+        try:
+            r_td = requests.get(f"https://api.tiklydown.eu.org/api/download?url={requests.utils.quote(u, safe='')}", timeout=8)
+            if r_td.status_code == 200:
+                d_td = r_td.json()
+                m_url = d_td.get("video", {}).get("noWatermark") or d_td.get("music", {}).get("play_url")
+                if m_url:
+                    r_down = requests.get(m_url, headers=headers_browser, timeout=20, stream=True)
+                    if r_down.status_code == 200:
+                        t_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        for chk in r_down.iter_content(chunk_size=65536):
+                            t_file.write(chk)
+                        t_file.close()
+                        if os.path.getsize(t_file.name) > 5000:
+                            return t_file.name
+        except Exception:
+            pass
+
+        # Proveedor 4: Lovetik API
+        try:
+            r_love = requests.post(
+                "https://lovetik.com/api/ajax/search",
+                data={"query": u},
+                headers={"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "User-Agent": headers_browser["User-Agent"]},
+                timeout=8
+            )
+            if r_love.status_code == 200:
+                d_love = r_love.json()
+                if d_love.get("status") == "ok":
+                    for item in d_love.get("links", []):
+                        d_url = item.get("a")
+                        if d_url and d_url.startswith("http"):
+                            r_down = requests.get(d_url, headers=headers_browser, timeout=20, stream=True)
+                            if r_down.status_code == 200:
+                                t_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                                for chk in r_down.iter_content(chunk_size=65536):
+                                    t_file.write(chk)
+                                t_file.close()
+                                if os.path.getsize(t_file.name) > 5000:
+                                    return t_file.name
+        except Exception:
+            pass
 
     return None
 
-# EXTRACCIÓN OFICIAL DE SUBTÍTULOS DE YOUTUBE (0% ERROR 403)
+# EXTRACCIÓN DIRECTA DE SUBTÍTULOS DE YOUTUBE (0% ERROR 403)
 def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
     try:
         opciones = {
@@ -271,18 +344,18 @@ def obtener_subtitulos_youtube(enlace: str, cookies_file=None):
     except Exception:
         return None
 
-# DESCARGA GENERAL DE AUDIO
+# DESCARGA GENERAL DE AUDIO (Con bypass total de yt-dlp para TikTok)
 def extraer_audio_rapido(enlace: str) -> str:
-    temp_dir = tempfile.gettempdir()
-    out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
-
-    # 1. Intentar resolver TikTok con las APIs limpias
+    # 1. Si es TikTok, procesar únicamente con los resolvers externos
     if any(t in enlace.lower() for t in ["tiktok.com", "vt.tiktok", "vm.tiktok"]):
         tk_file = descargar_tiktok_directo(enlace)
         if tk_file and os.path.exists(tk_file):
             return tk_file
+        raise Exception("TikTok bloqueó la descarga en la nube. Puedes subir el archivo de audio o video directamente en '📁 Subir Archivo'.")
 
-    # 2. Si es YouTube, Instagram o TikTok con cookies
+    # 2. Instagram y YouTube
+    temp_dir = tempfile.gettempdir()
+    out_base = os.path.join(temp_dir, f"audio_{os.getpid()}")
     es_youtube = any(y in enlace.lower() for y in ["youtube.com", "youtu.be"])
 
     opciones = {
@@ -577,7 +650,7 @@ with tab_link:
                     with st.spinner("⚡ Extrayendo transcripción oficial de YouTube..."):
                         texto_crudo = obtener_subtitulos_youtube(url_limpia, cookies_file)
 
-                # 2. Descarga de audio (TikTok con resolución limpia o Instagram)
+                # 2. Descarga de audio (TikTok con 4 resolvers independientes o Instagram)
                 if not texto_crudo:
                     with st.spinner("⚡ Procesando video y audio..."):
                         archivo_temporal = extraer_audio_rapido(url_limpia)
